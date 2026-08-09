@@ -1,0 +1,91 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Command line front end.
+ *
+ *   bin/taxonfinder paper.txt
+ *   cat paper.txt | bin/taxonfinder
+ *   bin/taxonfinder --html --tag page.html
+ */
+
+require __DIR__ . '/../autoload.php';
+
+$options = array('html' => false, 'format' => 'tsv');
+$files = array();
+
+foreach (array_slice($argv, 1) as $argument) {
+    switch ($argument) {
+        case '--html': $options['html'] = true; break;
+        case '--json': $options['format'] = 'json'; break;
+        case '--names': $options['format'] = 'names'; break;
+        case '--tag': $options['format'] = 'tag'; break;
+        case '-h':
+        case '--help':
+            usage(0);
+            break;
+        default:
+            if (substr($argument, 0, 1) === '-' && $argument !== '-') {
+                fwrite(STDERR, "Unknown option: $argument\n");
+                usage(1);
+            }
+            $files[] = $argument;
+    }
+}
+
+if (!$files) {
+    $files[] = 'php://stdin';
+}
+
+$finder = new Taxonfinder\Finder();
+
+foreach ($files as $file) {
+    $text = file_get_contents($file === '-' ? 'php://stdin' : $file);
+    if ($text === false) {
+        fwrite(STDERR, "Could not read $file\n");
+        exit(1);
+    }
+    switch ($options['format']) {
+        case 'tag':
+            echo $finder->tagText($text, $options['html']);
+            break;
+        case 'names':
+            foreach ($finder->names($text, $options['html']) as $name) {
+                echo $name, "\n";
+            }
+            break;
+        case 'json':
+            echo json_encode($finder->find($text, $options['html'])), "\n";
+            break;
+        default:
+            foreach ($finder->find($text, $options['html']) as $result) {
+                echo implode("\t", array(
+                    $result['name'],
+                    $result['offsets'][0],
+                    $result['offsets'][1],
+                    isset($result['original']) ? $result['original'] : '',
+                )), "\n";
+            }
+    }
+}
+
+function usage($status)
+{
+    $stream = $status === 0 ? STDOUT : STDERR;
+    fwrite($stream, <<<TEXT
+Usage: taxonfinder [options] [file ...]
+
+Finds scientific names in text. Reads standard input if no file is given.
+
+  --html    the input is HTML, not plain text
+  --json    print the results as JSON
+  --names   print just the unique names, one per line
+  --tag     print the input with every name wrapped in a <name> element
+  --help    show this message
+
+With no output option, prints a tab separated name, start offset, end offset
+and (for abbreviated names) the original form.
+
+TEXT
+    );
+    exit($status);
+}

@@ -1,0 +1,26 @@
+{
+    "name": "rdmpage/taxonfinder",
+    "description": "Detects scientific names in text. A PHP port of node-taxonfinder.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=7.1"
+    },
+    "suggest": {
+        "ext-mbstring": "Unicode-aware lowercasing of non-ASCII dictionary terms and text"
+    },
+    "autoload": {
+        "psr-4": {
+            "Taxonfinder\\": "src/"
+        },
+        "files": [
+            "functions.php"
+        ]
+    },
+    "bin": [
+        "bin/taxonfinder"
+    ],
+    "scripts": {
+        "test": "php tests/run.php"
+    }
+}
