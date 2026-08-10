@@ -95,12 +95,12 @@ function createState($word, $workingName = '')
 /** As the mocha suite's expectNameInText helper. */
 function expectNameInText(array $options)
 {
-    global $finder;
+    global $parser;
     if (!isset($options['text'])) {
         return;
     }
     $index = isset($options['index']) ? $options['index'] : 0;
-    $result = $finder->find($options['text']);
+    $result = $parser->findNamesAndOffsets($options['text']);
     if (isset($options['name'])) {
         assertEquals($options['name'], $result[$index]['name']);
     }
@@ -241,9 +241,9 @@ describe('#load', function () use ($dictionaries) {
 
 // ----------------------------------------------------------------- parser
 
-describe('#findNamesAndOffsets', function () use ($finder) {
-    it('finds and returns names and offsets', function () use ($finder) {
-        $result = $finder->find('The quick brown Animalia Vulpes vulpes (Canidae; Carnivora; '
+describe("#findNamesAndOffsets", function () use ($parser) {
+    it('finds and returns names and offsets', function () use ($parser) {
+        $result = $parser->findNamesAndOffsets('The quick brown Animalia Vulpes vulpes (Canidae; Carnivora; '
             . 'Animalia) jumped over the lazy Canis lupis familiaris');
         assertEquals('Animalia', $result[0]['name']);
         assertEquals(16, $result[0]['offsets'][0]);
@@ -255,8 +255,8 @@ describe('#findNamesAndOffsets', function () use ($finder) {
         assertEquals(40, $result[2]['offsets'][0]);
         assertEquals(47, $result[2]['offsets'][1]);
     });
-    it('expands abbreviated genera', function () use ($finder) {
-        $result = $finder->find('Pomatomus, P. saltator');
+    it('expands abbreviated genera', function () use ($parser) {
+        $result = $parser->findNamesAndOffsets('Pomatomus, P. saltator');
         assertEquals('Pomatomus', $result[0]['name']);
         assertEquals(0, $result[0]['offsets'][0]);
         assertEquals(9, $result[0]['offsets'][1]);
@@ -265,28 +265,28 @@ describe('#findNamesAndOffsets', function () use ($finder) {
         assertEquals(11, $result[1]['offsets'][0]);
         assertEquals(22, $result[1]['offsets'][1]);
     });
-    it('gets correct offsets when the string is exactly the name', function () use ($finder) {
-        $result = $finder->find('Amanita muscaria');
+    it('gets correct offsets when the string is exactly the name', function () use ($parser) {
+        $result = $parser->findNamesAndOffsets('Amanita muscaria');
         assertEquals('Amanita muscaria', $result[0]['name']);
         assertEquals(0, $result[0]['offsets'][0]);
         assertEquals(16, $result[0]['offsets'][1]);
     });
-    it('gets correct offsets when abbreviations are followed by genera', function () use ($finder) {
-        $result = $finder->find('P. Pomatomus more words');
+    it('gets correct offsets when abbreviations are followed by genera', function () use ($parser) {
+        $result = $parser->findNamesAndOffsets('P. Pomatomus more words');
         assertEquals('Pomatomus', $result[0]['name']);
         assertEquals(3, $result[0]['offsets'][0]);
         assertEquals(12, $result[0]['offsets'][1]);
     });
-    it('gets correct offsets when abbreviations are followed by families', function () use ($finder) {
-        $result = $finder->find('P. Animalia more words');
+    it('gets correct offsets when abbreviations are followed by families', function () use ($parser) {
+        $result = $parser->findNamesAndOffsets('P. Animalia more words');
         assertEquals('Animalia', $result[0]['name']);
         assertEquals(3, $result[0]['offsets'][0]);
         assertEquals(11, $result[0]['offsets'][1]);
     });
-    it('allows plain text', function () use ($finder) {
-        $result = $finder->find('Text <e this would break HTML parsing Amanita muscaria');
+    it('allows plain text', function () use ($parser) {
+        $result = $parser->findNamesAndOffsets('Text <e this would break HTML parsing Amanita muscaria');
         assertEquals('Amanita muscaria', $result[0]['name']);
-        $result = $finder->find('Text <e this would break HTML parsing Amanita muscaria', true);
+        $result = $parser->findNamesAndOffsets('Text <e this would break HTML parsing Amanita muscaria', true);
         assertEquals(array(), $result);
     });
     it('gets the name when the string is exactly the name', function () {
@@ -333,29 +333,29 @@ describe('#findNamesAndOffsets', function () use ($finder) {
         expectNameInText(array('text' => $text, 'name' => 'Animalia', 'index' => 0));
         expectNameInText(array('text' => $text, 'name' => 'Felis leo', 'index' => 1));
     });
-    it('drops nomenclatural annotations left messy by OCR', function () use ($finder) {
+    it('drops nomenclatural annotations left messy by OCR', function () use ($parser) {
         // A real line from Insects of Samoa: 'gen. n., sp. n.' misread by OCR.
-        $result = $finder->find('15. Pseudoneoborus samoanus, gen. ., sp. 0. x');
+        $result = $parser->findNamesAndOffsets('15. Pseudoneoborus samoanus, gen. ., sp. 0. x');
         assertEquals('Pseudoneoborus samoanus', $result[0]['name']);
         assertEquals(1, count($result));
     });
-    it('keeps an infraspecific rank that is part of the name', function () use ($finder) {
-        $result = $finder->find('Amanita muscaria var. formosa is common');
+    it('keeps an infraspecific rank that is part of the name', function () use ($parser) {
+        $result = $parser->findNamesAndOffsets('Amanita muscaria var. formosa is common');
         assertEquals('Amanita muscaria var. formosa', $result[0]['name']);
     });
-    it('gets byte offsets right after a multi-byte character', function () use ($finder) {
+    it('gets byte offsets right after a multi-byte character', function () use ($parser) {
         // From Insects of Samoa: 'TExt-ric. 1.<em dash>Onconotellus buztoni'.
         // The em dash is three bytes, so skipping one byte would land the
         // offset in the middle of it.
         $text = "TExt-fig. 1.\xE2\x80\x94Onconotellus buxtoni, n. g., n. sp.";
-        $result = $finder->find($text);
+        $result = $parser->findNamesAndOffsets($text);
         list($start, $end) = $result[0]['offsets'];
         assertEquals($result[0]['name'], substr($text, $start, $end - $start));
         assertEquals('Onconotellus buxtoni', $result[0]['name']);
     });
-    it('gives a real end offset for a name that ends the text', function () use ($finder) {
+    it('gives a real end offset for a name that ends the text', function () use ($parser) {
         // The JavaScript returns NaN here; see tools/compare.php.
-        $result = $finder->find('Felis leo, chaus, catus');
+        $result = $parser->findNamesAndOffsets('Felis leo, chaus, catus');
         assertEquals(array(18, 23), $result[2]['offsets']);
     });
 });
@@ -754,6 +754,142 @@ describe('#names', function () use ($finder) {
     });
 });
 
+describe('Nomenclature::detect', function () {
+    /** Detect the annotation following $name in $text. */
+    $acts = function ($text) {
+        $end = strpos($text, '|');           // | marks the end of the name
+        $text = str_replace('|', '', $text);
+        $found = Taxonfinder\Nomenclature::detect($text, $end);
+        return $found === null ? null : $found['acts'];
+    };
+    it('reads the common new-name annotations', function () use ($acts) {
+        assertEquals(array('sp. nov.'), $acts('Lygus buxtoni|, sp. n. Fig. 3'));
+        assertEquals(array('sp. nov.'), $acts('Lygus buxtoni|, sp. nov.'));
+        assertEquals(array('sp. nov.'), $acts('Lygus buxtoni| n. sp.'));
+        assertEquals(array('gen. nov.'), $acts('Pseudoneoborus| gen. nov.'));
+        assertEquals(array('comb. nov.'), $acts('Lygus buxtoni| comb. nov.'));
+        assertEquals(array('syn. nov.'), $acts('Lygus buxtoni| syn. nov.'));
+        assertEquals(array('stat. nov.'), $acts('Lygus buxtoni| stat. nov.'));
+        assertEquals(array('nom. nov.'), $acts('Lygus buxtoni| nom. nov.'));
+        assertEquals(array('subsp. nov.'), $acts('Lygus buxtoni| ssp. nov.'));
+    });
+    it('reads several acts on one name', function () use ($acts) {
+        assertEquals(array('gen. nov.', 'sp. nov.'),
+            $acts('Pseudoneoborus samoanus|, gen. n., sp. n. x'));
+    });
+    it('distinguishes an indeterminate name from a new one', function () use ($acts) {
+        assertEquals(array('sp.'), $acts('Amanita| sp.'));
+        assertEquals(array('sp. nov.'), $acts('Amanita muscaria| sp. nov.'));
+    });
+    it('reports what survived OCR, without inventing the rest', function () use ($acts) {
+        // 'gen. n., sp. n.' misread. The markers are gone, so these are
+        // reported bare rather than as new-name acts.
+        assertEquals(array('gen.', 'sp.'), $acts('Pseudoneoborus samoanus|, gen. ., sp. 0. x'));
+    });
+    it('keeps the verbatim text and its own offsets', function () {
+        $text = '15. Pseudoneoborus samoanus, gen. n., sp. n. x';
+        $found = Taxonfinder\Nomenclature::detect($text, 27);
+        assertEquals('gen. n., sp. n.', $found['verbatim']);
+        assertEquals('gen. n., sp. n.',
+            substr($text, $found['start'], $found['end'] - $found['start']));
+    });
+    it('finds nothing where there is nothing', function () use ($acts) {
+        assertNull($acts('Felis leo| rocks'));
+        assertNull($acts('Felis leo|'));
+        assertNull($acts('Felisacus filicicola| (Kirkaldy).'));
+        assertNull($acts('Vulpes vulpes| (Linnaeus, 1758)'));
+    });
+    it('does not read an author initial as a new-name marker', function () use ($acts) {
+        // 'N.' is capitalised, so it is an initial, not 'novum'.
+        assertNull($acts('Felis leo| N. Smith'));
+        assertEquals(array('sp.'), $acts('Amanita| sp. N. Smith'));
+    });
+    it('stops at anything that is not part of an annotation', function () use ($acts) {
+        assertNull($acts('Felis leo| and then sp. nov.'));
+        assertNull($acts('Felis leo| 1923 sp. nov.'));
+        assertEquals(array('sp. nov.'), $acts('Felis leo| sp. n. and then some words'));
+        // A digit between the words ends the run, so only 'var' is read
+        assertEquals(array('var.'), $acts('Felis leo| var 3 nov.'));
+    });
+});
+
+describe('#find (annotations)', function () use ($finder) {
+    it('builds a W3C-ish annotation', function () use ($finder) {
+        $text = 'Wow, Felis leo rocks';
+        $annotations = $finder->find($text);
+        assertEquals(1, count($annotations));
+        $annotation = $annotations[0];
+        assertEquals('Annotation', $annotation['type']);
+        assertEquals('TextualBody', $annotation['body']['type']);
+        assertEquals('identifying', $annotation['body']['purpose']);
+        assertEquals('Felis leo', $annotation['body']['value']);
+
+        list($quote, $position) = $annotation['target']['selector'];
+        assertEquals('TextQuoteSelector', $quote['type']);
+        assertEquals('Wow, ', $quote['prefix']);
+        assertEquals('Felis leo', $quote['exact']);
+        assertEquals(' rocks', $quote['suffix']);
+        assertEquals('TextPositionSelector', $position['type']);
+        assertEquals(5, $position['start']);
+        assertEquals(14, $position['end']);
+        assertEquals($quote['exact'],
+            substr($text, $position['start'], $position['end'] - $position['start']));
+        assertNotSet($annotation, 'nomenclature');
+    });
+    it('puts the original string in exact and the interpreted one in body', function () use ($finder) {
+        $annotations = $finder->find('Pomatomus; P. saltator');
+        assertEquals('Pomatomus saltator', $annotations[1]['body']['value']);
+        assertEquals('P. saltator', $annotations[1]['target']['selector'][0]['exact']);
+    });
+    it('reports the annotation separately from the name', function () use ($finder) {
+        $text = '15. Pseudoneoborus samoanus, gen. n., sp. n. x';
+        $annotation = $finder->find($text)[0];
+        list($quote, $position) = $annotation['target']['selector'];
+        // The name span stops at the name
+        assertEquals('Pseudoneoborus samoanus', $quote['exact']);
+        assertEquals('Pseudoneoborus samoanus', $annotation['body']['value']);
+        // and the annotation carries its own
+        assertEquals(array('gen. nov.', 'sp. nov.'), $annotation['nomenclature']['acts']);
+        assertEquals('gen. n., sp. n.', $annotation['nomenclature']['verbatim']);
+        assertTrue($annotation['nomenclature']['start'] >= $position['end']);
+        assertEquals('gen. n., sp. n.', substr($text, $annotation['nomenclature']['start'],
+            $annotation['nomenclature']['end'] - $annotation['nomenclature']['start']));
+    });
+    it('takes a configurable amount of context', function () {
+        $finder = new Finder(null, 4);
+        $quote = $finder->find('Wow, Felis leo rocks')[0]['target']['selector'][0];
+        assertEquals('ow, ', $quote['prefix']);
+        assertEquals(' roc', $quote['suffix']);
+        $finder->setContextLength(0);
+        $quote = $finder->find('Wow, Felis leo rocks')[0]['target']['selector'][0];
+        assertEquals('', $quote['prefix']);
+        assertEquals('', $quote['suffix']);
+    });
+    it('never cuts a multi-byte character in half', function () {
+        // Two bytes of context, with an em dash three bytes away on each
+        // side, so a naive cut lands inside it.
+        $finder = new Finder(null, 2);
+        $text = "x\xE2\x80\x94 Felis leo \xE2\x80\x94x";
+        $annotations = $finder->find($text);
+        assertEquals('Felis leo', $annotations[0]['body']['value']);
+        $quote = $annotations[0]['target']['selector'][0];
+        assertTrue(mb_check_encoding($quote['prefix'], 'UTF-8'), 'prefix is valid UTF-8');
+        assertTrue(mb_check_encoding($quote['suffix'], 'UTF-8'), 'suffix is valid UTF-8');
+        assertTrue(json_encode($quote) !== false, 'encodes as JSON');
+    });
+    it('keeps spans inside the text', function () use ($finder) {
+        $text = 'Felis leo, chaus, catus';
+        foreach ($finder->find($text) as $annotation) {
+            $position = $annotation['target']['selector'][1];
+            assertTrue($position['start'] >= 0 && $position['end'] <= strlen($text),
+                $annotation['body']['value'] . ' is within the text');
+        }
+    });
+    it('finds nothing in text without names', function () use ($finder) {
+        assertEquals(array(), $finder->find('nothing to see here at all'));
+    });
+});
+
 describe('SortedIndex', function () {
     it('finds every term it was built from and nothing else', function () {
         $terms = array('zebra', 'aardvark', 'mole', 'mole', 'Newt', ' vole ', '', 'yak');
@@ -780,17 +916,17 @@ describe('SortedIndex', function () {
 describe('extending the dictionaries', function () {
     it('finds a name added at runtime', function () {
         $finder = new Finder();
-        assertEquals(array(), $finder->find('Spamalotus montypythonae was collected'));
+        assertEquals(array(), $finder->names('Spamalotus montypythonae was collected'));
         $finder->dictionaries()->add('genera_new', 'Spamalotus');
         $finder->dictionaries()->add('species_new', 'montypythonae');
-        assertEquals('Spamalotus montypythonae',
-            $finder->find('Spamalotus montypythonae was collected')[0]['name']);
+        assertEquals(array('Spamalotus montypythonae'),
+            $finder->names('Spamalotus montypythonae was collected'));
     });
     it('stops finding a name removed at runtime', function () {
         $finder = new Finder();
-        assertEquals('Felis leo', $finder->find('Felis leo')[0]['name']);
+        assertEquals(array('Felis leo'), $finder->names('Felis leo'));
         $finder->dictionaries()->remove('genera', 'felis');
-        assertEquals(array(), $finder->find('Felis leo'));
+        assertEquals(array(), $finder->names('Felis leo'));
     });
     it('merges an extra dictionary directory', function () {
         $directory = sys_get_temp_dir() . '/taxonfinder-test-dict-' . getmypid();
@@ -800,15 +936,15 @@ describe('extending the dictionaries', function () {
         $dictionaries = new Dictionaries();
         $dictionaries->addDirectory($directory);
         $finder = new Finder($dictionaries);
-        assertEquals('Spamalotus montypythonae',
-            $finder->find('Spamalotus montypythonae was collected')[0]['name']);
+        assertEquals(array('Spamalotus montypythonae'),
+            $finder->names('Spamalotus montypythonae was collected'));
         unlink($directory . '/genera_new.txt');
         unlink($directory . '/species_new.txt');
         rmdir($directory);
     });
     it('keeps separate Finders separate', function () {
         $finder = new Finder(new Dictionaries());
-        assertEquals(array(), $finder->find('Spamalotus montypythonae was collected'));
+        assertEquals(array(), $finder->names('Spamalotus montypythonae was collected'));
     });
 });
 

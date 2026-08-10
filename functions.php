@@ -24,11 +24,13 @@ if (!function_exists('taxonfinder')) {
 
 if (!function_exists('taxonfinder_find')) {
     /**
-     * Find scientific names in text.
+     * Find scientific names in text, as annotation records. See Annotator for
+     * their shape; Parser::findNamesAndOffsets() is the level below if all you
+     * want is names and offsets.
      *
      * @param string $text
      * @param bool   $isHtml
-     * @return array list of array('name', 'offsets' => array(start, end)[, 'original'])
+     * @return array list of annotation records
      */
     function taxonfinder_find($text, $isHtml = false)
     {

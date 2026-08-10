@@ -7,10 +7,22 @@ all. No web server, no service, no dependencies — just a function you call.
 ```php
 require '/path/to/taxonfinder-php/autoload.php';
 
-$names = taxonfinder_find('Wow, Felis leo rocks');
-// array(
-//   array('name' => 'Felis leo', 'offsets' => array(5, 14)),
-// )
+$annotations = taxonfinder_find('Lygus buxtoni, sp. n.');
+```
+
+```json
+[{
+  "type": "Annotation",
+  "body": { "type": "TextualBody", "purpose": "identifying",
+            "value": "Lygus buxtoni" },
+  "target": { "selector": [
+    { "type": "TextQuoteSelector",
+      "prefix": "", "exact": "Lygus buxtoni", "suffix": ", sp. n." },
+    { "type": "TextPositionSelector", "start": 0, "end": 13 }
+  ]},
+  "nomenclature": { "verbatim": "sp. n.", "acts": ["sp. nov."],
+                    "start": 15, "end": 21 }
+}]
 ```
 
 ## Installing
@@ -35,49 +47,104 @@ only affects lowercasing of accented characters.
 The three convenience functions cover most needs:
 
 ```php
-taxonfinder_find($text, $isHtml = false);   // names with offsets
+taxonfinder_find($text, $isHtml = false);   // annotation records
 taxonfinder_names($text, $isHtml = false);  // just the unique names
 taxonfinder_tag($text, $isHtml = false);    // $text with <name> elements added
 ```
-
-`taxonfinder_find()` returns one entry per name found:
-
-```php
-taxonfinder_find('Pomatomus; P. saltator');
-// array(
-//   array('name' => 'Pomatomus',          'offsets' => array(0, 9)),
-//   array('name' => 'Pomatomus saltator', 'offsets' => array(11, 22),
-//         'original' => 'P. saltator'),
-// )
-```
-
-`offsets` are byte offsets into the string you passed in, so
-`substr($text, $start, $end - $start)` gets you the text that was matched.
-`original` only appears when an abbreviated genus was expanded from an earlier
-mention.
 
 Pass `true` as the second argument when the input is HTML. Tags are then
 stripped before parsing, and `<p>`, `<td>`, `<tr>`, `<table>`, `<hr>`, `<ul>`
 and `<li>` stop a name from running across them.
 
-If you are processing many documents, keep one `Finder` so the dictionaries are
-only loaded once:
+### The annotation record
+
+One record per name found, loosely modelled on the
+[W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/).
+
+| where | what |
+| --- | --- |
+| `body.value` | the **interpreted** name — capitalisation normalised, abbreviated genus expanded, trailing `sp. nov.` removed |
+| `target.selector[0].exact` | the **original** string, exactly as it appears in the text |
+| `target.selector[0].prefix` / `.suffix` | 32 bytes either side, so the name can be found again if the offsets go stale |
+| `target.selector[1].start` / `.end` | byte offsets, such that `substr($text, $start, $end - $start)` is `exact` |
+| `nomenclature` | present only when an annotation follows the name — see below |
+
+The two selectors are the two ways of finding the same span, as the model
+intends: positions are fast but break when the OCR is re-run, the quote
+survives that. Across the two Samoa fascicles, all 290 `prefix + exact +
+suffix` strings occur exactly once in their document, so re-anchoring by quote
+alone recovers the original offsets.
+
+`P. saltator` in `Pomatomus; P. saltator` gives `exact` of `"P. saltator"` and
+`body.value` of `"Pomatomus saltator"` — the abbreviation as printed, and what
+it means.
+
+### Nomenclatural annotations
+
+When a name is followed by a nomenclatural act, it gets its own object with its
+own span, so the name span stays clean for markup:
 
 ```php
-$finder = new Taxonfinder\Finder();
+taxonfinder_find('Pseudoneoborus samoanus, gen. n., sp. n.')[0]['nomenclature'];
+// array(
+//   'verbatim' => 'gen. n., sp. n.',
+//   'acts'     => array('gen. nov.', 'sp. nov.'),
+//   'start'    => 25,
+//   'end'      => 40,
+// )
+```
+
+Acts are reported canonically — `sp. nov.`, `gen. nov.`, `comb. nov.`,
+`syn. nov.`, `stat. nov.`, `nom. nov.`, `subsp. nov.`, `var. nov.`, `fam. nov.`
+— in both the `sp. n.` and `n. sp.` orders. So a new name is
+`substr($act, -4) === 'nov.'`.
+
+An act without the "new" marker is reported bare: `Amanita sp.` gives `sp.`,
+meaning indeterminate rather than new. That also covers OCR damage — the real
+line `Pseudoneoborus samoanus, gen. ., sp. 0.` reports `gen.` and `sp.` rather
+than guessing that the lost characters were `n.` The `verbatim` text is always
+there so you can judge.
+
+A capitalised `N.` is treated as an author's initial, not as `novum`, so
+`Amanita sp. N. Smith` gives `sp.` and not `sp. nov.`
+
+Running this over the 80 KB *Insects of Samoa* fascicle finds 285 names, 58 of
+them annotated: 45 `sp. nov.`, 8 `gen. nov.`, 2 `var. nov.`, 6 bare `sp.`
+
+### Keeping an instance
+
+If you are processing many documents, keep one `Finder` so the dictionaries are
+only loaded once. The second constructor argument is how much context each
+`TextQuoteSelector` carries, in bytes:
+
+```php
+$finder = new Taxonfinder\Finder(null, 48);
 foreach ($documents as $document) {
-    $names = $finder->find($document);
+    $annotations = $finder->find($document);
 }
 ```
+
+If you only want names and offsets, without the annotation wrapper, the layer
+below is `Taxonfinder\Parser::findNamesAndOffsets()`. That is also the method
+checked against the JavaScript original.
 
 ### From the command line
 
 ```
-bin/taxonfinder paper.txt              # name, start, end, original (tab separated)
-bin/taxonfinder --names paper.txt      # just the unique names
-bin/taxonfinder --json paper.txt
-bin/taxonfinder --html --tag page.html
+bin/taxonfinder paper.txt                 # JSON annotations
+bin/taxonfinder --compact paper.txt       # one line of JSON
+bin/taxonfinder --context=64 paper.txt    # more context in the quote selector
+bin/taxonfinder --names paper.txt         # just the unique names
+bin/taxonfinder --html --tag page.html    # mark up the text in place
 cat paper.txt | bin/taxonfinder
+```
+
+Listing the new names in a paper is then a one-liner:
+
+```
+bin/taxonfinder --compact paper.txt \
+  | jq -r '.[] | select(.nomenclature.acts // [] | any(endswith("nov.")))
+           | "\(.body.value)\t\(.nomenclature.acts | join(" "))"'
 ```
 
 ## The dictionaries
@@ -197,7 +264,7 @@ end of the string. Clamp it if that matters to you.
 php tests/run.php
 ```
 
-117 tests, a port of the original mocha suite plus tests for the PHP-specific
+132 tests, a port of the original mocha suite plus tests for the PHP-specific
 parts. No test framework required.
 
 ## Licence

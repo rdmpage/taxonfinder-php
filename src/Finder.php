@@ -4,16 +4,19 @@
  *
  *   require __DIR__ . '/taxonfinder-php/autoload.php';
  *
- *   $names = taxonfinder_find('Wow, Felis leo rocks');
- *   // array(array('name' => 'Felis leo', 'offsets' => array(5, 14)))
+ *   $annotations = taxonfinder_find('Wow, Felis leo rocks');
  *
  * or, keeping hold of an instance (recommended - the dictionaries are then
  * only loaded once):
  *
  *   $finder = new Taxonfinder\Finder();
  *   foreach ($documents as $document) {
- *       $names = $finder->find($document);
+ *       $annotations = $finder->find($document);
  *   }
+ *
+ * find() returns annotation records; see Annotator for their shape. If you
+ * want the bare name-and-offset pairs instead, Parser::findNamesAndOffsets()
+ * is the level below.
  */
 
 namespace Taxonfinder;
@@ -23,16 +26,22 @@ class Finder
     /** @var Parser */
     private $parser;
 
+    /** @var Annotator */
+    private $annotator;
+
     /** @var NameTag */
     private $nameTag;
 
     /**
-     * @param Dictionaries|null $dictionaries pass your own to use a custom set
-     *                                        of dictionary files
+     * @param Dictionaries|null $dictionaries  pass your own to use a custom set
+     *                                         of dictionary files
+     * @param int               $contextLength bytes of context either side of a
+     *                                         name in its TextQuoteSelector
      */
-    public function __construct(?Dictionaries $dictionaries = null)
+    public function __construct(?Dictionaries $dictionaries = null, $contextLength = 32)
     {
         $this->parser = new Parser($dictionaries);
+        $this->annotator = new Annotator($this->parser, $contextLength);
         $this->nameTag = new NameTag($this->parser);
     }
 
@@ -41,28 +50,18 @@ class Finder
      *
      * @param string $text
      * @param bool   $isHtml  true if $text is HTML rather than plain text
-     * @return array list of array(
-     *                 'name'     => 'Pomatomus saltator',
-     *                 'offsets'  => array(start, end),   // byte offsets into $text
-     *                 'original' => 'P. saltator',       // only when abbreviated
-     *               )
+     * @return array list of annotation records
      */
     public function find($text, $isHtml = false)
     {
-        return $this->parser->findNamesAndOffsets($text, $isHtml);
-    }
-
-    /** Alias of find(), matching the JavaScript library's method name. */
-    public function findNamesAndOffsets($text, $isHtml = false)
-    {
-        return $this->parser->findNamesAndOffsets($text, $isHtml);
+        return $this->annotator->annotate($text, $isHtml);
     }
 
     /** Just the names, deduplicated, in the order they first appear. */
     public function names($text, $isHtml = false)
     {
         $names = array();
-        foreach ($this->find($text, $isHtml) as $result) {
+        foreach ($this->parser->findNamesAndOffsets($text, $isHtml) as $result) {
             $names[$result['name']] = true;
         }
         return array_keys($names);
@@ -72,6 +71,13 @@ class Finder
     public function tagText($text, $isHtml = false)
     {
         return $this->nameTag->tagText($text, $isHtml);
+    }
+
+    /** How much context each TextQuoteSelector carries. Default 32 bytes. */
+    public function setContextLength($contextLength)
+    {
+        $this->annotator->setContextLength($contextLength);
+        return $this;
     }
 
     /**

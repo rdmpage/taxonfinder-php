@@ -383,7 +383,7 @@ class Parser
         //
         // Each iteration drops at least a separator and a word, so $name gets
         // strictly shorter and this always terminates.
-        while (preg_match('/^(.*[^\s.,;])[\s.,;]+([A-Za-z]+)[\s.,;]*$/D', $name, $match)) {
+        while (preg_match('/^(.*[0-9A-Za-z])[^0-9A-Za-z]+([A-Za-z]+)[^0-9A-Za-z]*$/D', $name, $match)) {
             if (!$this->dictionaries->has('ranks', Utility::lower($match[2]))) {
                 break;
             }

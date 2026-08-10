@@ -10,12 +10,15 @@ require __DIR__ . '/../autoload.php';
 
 $file = isset($argv[1]) ? $argv[1] : 'php://stdin';
 $isHtml = in_array('--html', $argv, true);
-$finder = new Taxonfinder\Finder();
+// The parser, not the Finder: this compares the port against the JavaScript,
+// so it wants the same names and offsets the JavaScript returns, not the
+// annotation records the Finder builds on top of them.
+$parser = new Taxonfinder\Parser();
 
 $handle = fopen($file, 'r');
 while (($line = fgets($handle)) !== false) {
     $document = str_replace('\n', "\n", rtrim($line, "\r\n"));
-    $results = $finder->find($document, $isHtml);
+    $results = $parser->findNamesAndOffsets($document, $isHtml);
     $simplified = array();
     foreach ($results as $result) {
         $simplified[] = array(

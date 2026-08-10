@@ -10,13 +10,17 @@
 
 require __DIR__ . '/../autoload.php';
 
-$options = array('html' => false, 'format' => 'tsv');
+$options = array('html' => false, 'format' => 'json', 'pretty' => true, 'context' => 32);
 $files = array();
 
 foreach (array_slice($argv, 1) as $argument) {
+    if (preg_match('/^--context=(\d+)$/', $argument, $match)) {
+        $options['context'] = (int) $match[1];
+        continue;
+    }
     switch ($argument) {
         case '--html': $options['html'] = true; break;
-        case '--json': $options['format'] = 'json'; break;
+        case '--compact': $options['pretty'] = false; break;
         case '--names': $options['format'] = 'names'; break;
         case '--tag': $options['format'] = 'tag'; break;
         case '-h':
@@ -36,7 +40,7 @@ if (!$files) {
     $files[] = 'php://stdin';
 }
 
-$finder = new Taxonfinder\Finder();
+$finder = new Taxonfinder\Finder(null, $options['context']);
 
 foreach ($files as $file) {
     $text = file_get_contents($file === '-' ? 'php://stdin' : $file);
@@ -53,19 +57,27 @@ foreach ($files as $file) {
                 echo $name, "\n";
             }
             break;
-        case 'json':
-            echo json_encode($finder->find($text, $options['html'])), "\n";
-            break;
         default:
-            foreach ($finder->find($text, $options['html']) as $result) {
-                echo implode("\t", array(
-                    $result['name'],
-                    $result['offsets'][0],
-                    $result['offsets'][1],
-                    isset($result['original']) ? $result['original'] : '',
-                )), "\n";
-            }
+            echo encode($finder->find($text, $options['html']), $options['pretty']), "\n";
     }
+}
+
+/** JSON, falling back to substitution if the source text is not valid UTF-8. */
+function encode($data, $pretty)
+{
+    $flags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
+    if ($pretty) {
+        $flags |= JSON_PRETTY_PRINT;
+    }
+    $json = json_encode($data, $flags);
+    if ($json === false && defined('JSON_INVALID_UTF8_SUBSTITUTE')) {
+        $json = json_encode($data, $flags | JSON_INVALID_UTF8_SUBSTITUTE);
+    }
+    if ($json === false) {
+        fwrite(STDERR, "Could not encode results as JSON: " . json_last_error_msg() . "\n");
+        exit(1);
+    }
+    return $json;
 }
 
 function usage($status)
@@ -75,15 +87,18 @@ function usage($status)
 Usage: taxonfinder [options] [file ...]
 
 Finds scientific names in text. Reads standard input if no file is given.
+Prints a JSON array of annotation records, loosely modelled on the W3C Web
+Annotation Data Model: the interpreted name in body.value, the original string
+and its surroundings in a TextQuoteSelector, byte offsets in a
+TextPositionSelector, and any nomenclatural annotation ('sp. nov.', 'comb.
+nov.') under nomenclature.
 
-  --html    the input is HTML, not plain text
-  --json    print the results as JSON
-  --names   print just the unique names, one per line
-  --tag     print the input with every name wrapped in a <name> element
-  --help    show this message
-
-With no output option, prints a tab separated name, start offset, end offset
-and (for abbreviated names) the original form.
+  --html         the input is HTML, not plain text
+  --compact      one line of JSON instead of pretty printed
+  --context=N    bytes of context either side of a name (default 32)
+  --names        print just the unique names, one per line
+  --tag          print the input with every name wrapped in a <name> element
+  --help         show this message
 
 TEXT
     );
