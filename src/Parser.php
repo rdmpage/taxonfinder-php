@@ -133,7 +133,7 @@ class Parser
 
     private function buildResult($name, array $startItem, array $lastItem, $lastWord, $startIsLast)
     {
-        $startIndent = preg_match('/^[^a-z]/i', (string) $startItem['word']) ? 1 : 0;
+        $startIndent = self::startIndent((string) $startItem['word']);
         $lastOffset = $lastItem['offset'] + strlen($lastWord);
         if ($startIsLast) {
             $lastOffset += $startIndent;
@@ -149,6 +149,27 @@ class Parser
             $resultHash['original'] = preg_replace('/\[.*?\]/', '.', $name);
         }
         return $resultHash;
+    }
+
+    /**
+     * How far into a word the name itself starts, in bytes.
+     *
+     * This is the same leading run that clean() strips to get the word the
+     * dictionaries were matched against, so the reported offsets always
+     * bracket the name exactly.
+     *
+     * The JavaScript skips a single leading non-letter instead, which is one
+     * UTF-16 unit. That is not enough for 'Upolu :-Vailima', where the name is
+     * behind two punctuation characters, and it lands mid-character on a
+     * multi-byte one such as the em dash in '1.-Onconotellus'. Byte offsets
+     * make both cases visible; matching clean() fixes both.
+     */
+    private static function startIndent($word)
+    {
+        if (preg_match('/^[^0-9A-Za-z]+/', $word, $match)) {
+            return strlen($match[0]);
+        }
+        return 0;
     }
 
     /**
@@ -352,11 +373,22 @@ class Parser
             }
             $name = $nextString;
         }
-        // Amanita sp.
-        if (preg_match('/^(.*) ([^ .]+)\.?$/D', $name, $match)) {
-            $potentialRank = $match[2];
-            if ($this->dictionaries->has('ranks', $potentialRank)) {
-                $name = $match[1];
+        // Amanita sp. / Amanita muscaria gen. nov. / Pseudoneoborus samoanus gen. .
+        //
+        // Strip every trailing rank word, ignoring whatever punctuation is
+        // sitting around it. The JavaScript strips at most one, and only when
+        // the name ends in exactly 'rank' or 'rank.', so a second annotation
+        // ('gen. nov.') or OCR debris after the first ('gen. .', 'gen. ,')
+        // leaves the rank stuck on the end of the name.
+        //
+        // Each iteration drops at least a separator and a word, so $name gets
+        // strictly shorter and this always terminates.
+        while (preg_match('/^(.*[^\s.,;])[\s.,;]+([A-Za-z]+)[\s.,;]*$/D', $name, $match)) {
+            if (!$this->dictionaries->has('ranks', Utility::lower($match[2]))) {
+                break;
+            }
+            $name = $match[1];
+            if ($score !== '') {
                 $score = substr($score, 0, strlen($score) - 1);
             }
         }

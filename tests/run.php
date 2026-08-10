@@ -333,6 +333,26 @@ describe('#findNamesAndOffsets', function () use ($finder) {
         expectNameInText(array('text' => $text, 'name' => 'Animalia', 'index' => 0));
         expectNameInText(array('text' => $text, 'name' => 'Felis leo', 'index' => 1));
     });
+    it('drops nomenclatural annotations left messy by OCR', function () use ($finder) {
+        // A real line from Insects of Samoa: 'gen. n., sp. n.' misread by OCR.
+        $result = $finder->find('15. Pseudoneoborus samoanus, gen. ., sp. 0. x');
+        assertEquals('Pseudoneoborus samoanus', $result[0]['name']);
+        assertEquals(1, count($result));
+    });
+    it('keeps an infraspecific rank that is part of the name', function () use ($finder) {
+        $result = $finder->find('Amanita muscaria var. formosa is common');
+        assertEquals('Amanita muscaria var. formosa', $result[0]['name']);
+    });
+    it('gets byte offsets right after a multi-byte character', function () use ($finder) {
+        // From Insects of Samoa: 'TExt-ric. 1.<em dash>Onconotellus buztoni'.
+        // The em dash is three bytes, so skipping one byte would land the
+        // offset in the middle of it.
+        $text = "TExt-fig. 1.\xE2\x80\x94Onconotellus buxtoni, n. g., n. sp.";
+        $result = $finder->find($text);
+        list($start, $end) = $result[0]['offsets'];
+        assertEquals($result[0]['name'], substr($text, $start, $end - $start));
+        assertEquals('Onconotellus buxtoni', $result[0]['name']);
+    });
     it('gives a real end offset for a name that ends the text', function () use ($finder) {
         // The JavaScript returns NaN here; see tools/compare.php.
         $result = $finder->find('Felis leo, chaus, catus');
@@ -564,6 +584,39 @@ describe('#prepareReturnHash', function () use ($parser) {
         assertEquals('Amanita', $response['name']);
         $response = $parser->prepareReturnHash(array('name' => 'Amanita muscaria', 'score' => 'GS'));
         assertEquals('Amanita muscaria', $response['name']);
+    });
+    // Trailing nomenclatural annotations. The JavaScript strips at most one
+    // rank, and only when the name ends in exactly 'rank' or 'rank.'.
+    it('chops off a trailing rank followed by punctuation', function () use ($parser) {
+        // From an OCR'd 'Pseudoneoborus samoanus, gen. ., sp. 0.'
+        $response = $parser->prepareReturnHash(
+            array('name' => 'Pseudoneoborus samoanus gen. .', 'score' => 'GSR'));
+        assertEquals('Pseudoneoborus samoanus', $response['name']);
+        assertEquals('GS', $response['score']);
+        $response = $parser->prepareReturnHash(
+            array('name' => 'Amanita muscaria gen. ,', 'score' => 'GSR'));
+        assertEquals('Amanita muscaria', $response['name']);
+    });
+    it('chops off several trailing ranks', function () use ($parser) {
+        $response = $parser->prepareReturnHash(
+            array('name' => 'Amanita muscaria gen. nov.', 'score' => 'GSRR'));
+        assertEquals('Amanita muscaria', $response['name']);
+        assertEquals('GS', $response['score']);
+        $response = $parser->prepareReturnHash(array('name' => 'Amanita sp. nov.', 'score' => 'GRR'));
+        assertEquals('Amanita', $response['name']);
+        assertEquals('G', $response['score']);
+    });
+    it('leaves ranks inside a name alone', function () use ($parser) {
+        $response = $parser->prepareReturnHash(
+            array('name' => 'Amanita muscaria var. formosa', 'score' => 'GSRS'));
+        assertEquals('Amanita muscaria var. formosa', $response['name']);
+        assertEquals('GSRS', $response['score']);
+    });
+    it('does not chop a name that is not a rank', function () use ($parser) {
+        $response = $parser->prepareReturnHash(array('name' => 'Felis leo', 'score' => 'GS'));
+        assertEquals('Felis leo', $response['name']);
+        $response = $parser->prepareReturnHash(array('name' => 'Amanita [] muscaria', 'score' => 'GRS'));
+        assertEquals('Amanita [] muscaria', $response['name']);
     });
 });
 

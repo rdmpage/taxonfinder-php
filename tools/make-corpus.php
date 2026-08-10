@@ -101,6 +101,18 @@ $handwritten = array(
     '<em>Amanita</em> <em>muscaria</em> <em>muscaria</em>',
     '&amp; Felis leo &lt;',
     '<name found="x">Felis leo</name>',
+    // Nomenclatural annotations, including the shapes OCR leaves behind
+    'Amanita sp.',
+    'Amanita muscaria gen. nov.',
+    'Amanita muscaria sp. nov.',
+    'Amanita muscaria sp. n.',
+    'Amanita muscaria gen. n., sp. n.',
+    '15. Pseudoneoborus samoanus, gen. ., sp. 0. x',
+    '32. Paurolugus scutatus, gen. n.,,sp.n. . x',
+    'Felis leo gen. ,',
+    'Felis leo var.',
+    'Felis leo var. persicus gen. nov.',
+    'Amanita muscaria ssp. nov. and more text',
 );
 
 foreach ($handwritten as $document) {
@@ -146,11 +158,16 @@ $templates = array(
     '<i>%G</i> <i>%s</i> %r <i>%s</i>',
     '%w <div %G %s',
     '%G%p</p>%s %w',
+    '%d. %G %s, gen. ., sp. 0. x',
+    '%d. %G %s, %r. n., %r. n.',
+    '%G %s %r. nov.',
+    '%G %r.',
+    '%w %G %s %r. %w %w',
 );
 
 for ($i = 0; $i < 4000; $i++) {
     $template = $templates[array_rand($templates)];
-    $document = preg_replace_callback('/%[GgFsrwpA]/', function ($match) use (
+    $document = preg_replace_callback('/%[GgFsrwpAd]/', function ($match) use (
         $genera, $species, $families, $ranks, $filler, $punctuation
     ) {
         switch ($match[0]) {
@@ -162,6 +179,7 @@ for ($i = 0; $i < 4000; $i++) {
             case '%r': return $ranks[array_rand($ranks)];
             case '%w': return $filler[array_rand($filler)];
             case '%p': return $punctuation[array_rand($punctuation)];
+            case '%d': return (string) mt_rand(1, 99);
         }
         return '';
     }, $template);

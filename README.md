@@ -152,24 +152,38 @@ itself on the next run (a second or so for the big files). If
 ## Differences from node-taxonfinder
 
 The port is deliberately faithful, down to the regular expressions. It is
-checked against the original by running both over a few thousand documents, in
-plain text and in HTML mode, and diffing the results:
+checked against the original by running both over a few thousand generated
+documents, in plain text and in HTML mode, plus any real documents you name:
 
 ```
-tools/compare.sh [path-to-node-taxonfinder]
+tools/compare.sh [path-to-node-taxonfinder] [real-text-file ...]
 ```
 
-They find the same names in every document. Offsets agree too, apart from two
-differences:
+Every name is classified individually, and anything not on the list below fails
+the run. The two implementations find the same names in every document; four
+kinds of difference are deliberate.
 
-* **Names that run to the end of the text.** The JavaScript reads the end
-  offset off a sentinel that has no offset and returns `NaN`. This port
-  returns the real end offset.
-* **Offsets are byte offsets, not UTF-16 offsets.** For ASCII text the two are
-  identical. For text containing an em dash or an accented letter they drift
-  apart, because JavaScript counts UTF-16 code units. Byte offsets are what
-  PHP's `substr()` wants, so these are the more useful ones here.
-  `tools/compare.php` converts between the two and checks they match exactly.
+**Offsets are byte offsets, not UTF-16 offsets.** For ASCII text the two are
+identical. For text containing an em dash or an accented letter they drift
+apart, because JavaScript counts UTF-16 code units. Byte offsets are what PHP's
+`substr()` wants. `tools/compare.php` converts between the two and checks they
+agree exactly.
+
+**Names that run to the end of the text** get a real end offset. The JavaScript
+reads it off a sentinel that has no offset and returns `NaN`.
+
+**Leading punctuation is skipped completely.** The JavaScript skips a single
+character before the name, which is one character short in `Upolu :—Vailima`,
+and lands in the middle of a multi-byte character in `1.—Onconotellus`. This
+port skips the whole run — the same run `clean()` strips before matching — so a
+reported span always brackets its name exactly.
+
+**Trailing nomenclatural annotations are all removed.** The JavaScript strips at
+most one rank word, and only when the name ends in exactly `rank` or `rank.`, so
+`Amanita muscaria gen. nov.` keeps `gen.` and the OCR'd
+`Pseudoneoborus samoanus, gen. ., sp. 0.` yields `Pseudoneoborus samoanus gen. .`.
+This port strips every trailing rank and ignores punctuation around it. Ranks
+*inside* a name are untouched: `Amanita muscaria var. formosa` is unchanged.
 
 One quirk carried over from the original is worth knowing about: offsets for
 names in comma-separated lists are loose. In `Felis leo, chaus, catus`,
@@ -183,7 +197,7 @@ end of the string. Clamp it if that matters to you.
 php tests/run.php
 ```
 
-110 tests, a port of the original mocha suite plus tests for the PHP-specific
+117 tests, a port of the original mocha suite plus tests for the PHP-specific
 parts. No test framework required.
 
 ## Licence
