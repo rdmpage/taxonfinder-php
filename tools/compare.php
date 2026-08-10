@@ -22,6 +22,10 @@
  *                     lands mid-character on a multi-byte one. We skip the
  *                     whole run, so the span brackets the name exactly.
  *                     Verified against the document, not against node.
+ *   qualifier         '(s. str.)' and friends end the name in the JavaScript,
+ *                     losing the epithet after them. We read through them, so
+ *                     'Hypogastrura (s. str.) simsi' is one name rather than
+ *                     just the genus.
  *   trailing rank     JavaScript strips at most one trailing rank, and only
  *                     when the name ends in exactly 'rank' or 'rank.', so
  *                     'gen. nov.' and OCR debris like 'gen. .' stay attached.
@@ -42,7 +46,8 @@ $identicalDocuments = 0;
 $badDocuments = 0;
 $names = 0;
 $tally = array('identical' => 0, 'byte offsets' => 0, 'NaN end offset' => 0,
-               'leading punct' => 0, 'trailing rank' => 0, 'DIFFERENT' => 0);
+               'leading punct' => 0, 'trailing rank' => 0, 'qualifier' => 0,
+               'DIFFERENT' => 0);
 $shown = 0;
 
 foreach ($php as $i => $line) {
@@ -115,8 +120,13 @@ function classify($ours, $theirs, $document, $dictionaries)
         return 'DIFFERENT';
     }
 
-    // The JavaScript kept a trailing rank that we stripped.
     if ($ours[0] !== $theirs[0]) {
+        // We read through a qualifier the JavaScript stopped at, so our name
+        // carries epithets theirs does not, and our span covers the qualifier.
+        if (strpos($ours[0], $theirs[0]) === 0 && spanHoldsQualifier($document, $ours)) {
+            return 'qualifier';
+        }
+        // The JavaScript kept a trailing rank that we stripped.
         if (strpos($theirs[0], $ours[0]) !== 0) {
             return 'DIFFERENT';
         }
@@ -148,6 +158,18 @@ function classify($ours, $theirs, $document, $dictionaries)
         return 'leading punct';
     }
     return 'DIFFERENT';
+}
+
+/** Does our span cover a parenthetical qualifier that the name itself drops? */
+function spanHoldsQualifier($document, $result)
+{
+    $span = substr($document, $result[1], $result[2] - $result[1]);
+    if (!preg_match('/\(([^)]*)\)/', $span, $match)) {
+        return false;
+    }
+    $inside = strtolower(preg_replace('/[^A-Za-z]+/', '', $match[1]));
+    return in_array($inside, array('sstr', 'ss', 'slat', 'sl', 'sampl',
+        'sensustricto', 'sensulato', 'sensuamplo', 'sstrict', 'slato'), true);
 }
 
 /** Does our reported span contain exactly the name we reported? */

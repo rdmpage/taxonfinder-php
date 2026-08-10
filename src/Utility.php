@@ -155,6 +155,69 @@ class Utility
         return $finalWords;
     }
 
+    /**
+     * Parenthetical qualifiers that are not subgenera, normalised to letters
+     * only: (s. str.), (s.s.), (s. lat.), (s.l.), (sensu stricto), (sensu lato).
+     */
+    private static $qualifiers = array(
+        'sstr' => true, 'ss' => true, 'slat' => true, 'sl' => true, 'sampl' => true,
+        'sensustricto' => true, 'sensulato' => true, 'sensuamplo' => true,
+        'sstrict' => true, 'slato' => true,
+    );
+
+    /**
+     * Drop qualifiers such as the '(s. str.)' in
+     * 'Hypogastrura (s. str.) simsi', which otherwise cuts the name in two and
+     * loses the species. A real subgenus, '(Felis)' in 'Felis (Felis) leo', is
+     * left alone, as is '(sensu Christiansen and Bellinger)', which qualifies a
+     * group rather than a name.
+     *
+     * The remaining words keep their original offsets, so a name spanning a
+     * qualifier reports a span that includes it.
+     */
+    public static function removeQualifiers(array $wordsWithOffsets)
+    {
+        $finalWords = array();
+        $count = count($wordsWithOffsets);
+        for ($i = 0; $i < $count; $i++) {
+            $last = self::qualifierEndsAt($wordsWithOffsets, $i, $count);
+            if ($last !== null) {
+                $i = $last;
+                continue;
+            }
+            $finalWords[] = $wordsWithOffsets[$i];
+        }
+        return $finalWords;
+    }
+
+    /**
+     * If a qualifier starts at $start, the index of the word it ends on.
+     * A qualifier may be split over several words, because explodeText breaks
+     * '(s. str.)' at every full stop and space.
+     *
+     * @return int|null
+     */
+    private static function qualifierEndsAt(array $words, $start, $count)
+    {
+        $text = '';
+        $limit = min($start + 4, $count);
+        for ($i = $start; $i < $limit; $i++) {
+            if (!isset($words[$i]['word'])) {
+                return null;
+            }
+            $word = trim($words[$i]['word']);
+            if ($i === $start && substr($word, 0, 1) !== '(') {
+                return null;
+            }
+            $text .= $word;
+            if (substr($text, -1) === ')') {
+                $inside = strtolower(preg_replace('/[^A-Za-z]+/', '', substr($text, 1, -1)));
+                return isset(self::$qualifiers[$inside]) ? $i : null;
+            }
+        }
+        return null;
+    }
+
     /** Replace only the first occurrence of $search (JS String.replace semantics). */
     public static function replaceFirst($search, $replace, $subject)
     {

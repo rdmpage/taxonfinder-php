@@ -113,6 +113,11 @@ $handwritten = array(
     'Felis leo var.',
     'Felis leo var. persicus gen. nov.',
     'Amanita muscaria ssp. nov. and more text',
+    'Hypogastrura (s. str.) simsi NEW SPECIES',
+    'Hypogastrura (s.l.) simsi',
+    'Felis (Felis) leo NEW SPECIES',
+    'Amanita muscaria NEW SYNONYM.',
+    'Amanita muscaria new combination',
 );
 
 foreach ($handwritten as $document) {

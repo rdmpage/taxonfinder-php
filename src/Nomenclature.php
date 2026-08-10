@@ -30,6 +30,7 @@ class Nomenclature
      */
     private static $newMarkers = array(
         'nov' => true, 'nova' => true, 'novum' => true, 'novus' => true, 'n' => true,
+        'new' => true,
     );
 
     /**
@@ -59,6 +60,15 @@ class Nomenclature
         'aff'     => array('aff.', true),
         'ined'    => array('ined.', true),
         'emend'   => array('emend.', true),
+        // Spelled out, as in 'Hypogastrura (s. str.) simsi NEW SPECIES'. Only
+        // counted next to 'new', since these words are common in prose.
+        'combination' => array('comb.', false),
+        'synonym'     => array('syn.', false),
+        'status'      => array('stat.', false),
+        'name'        => array('nom.', false),
+        'subspecies'  => array('subsp.', false),
+        'variety'     => array('var.', false),
+        'family'      => array('fam.', false),
     );
 
     /**

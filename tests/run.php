@@ -190,6 +190,39 @@ describe('#explodeText', function () {
     });
 });
 
+describe('#removeQualifiers', function () {
+    $words = function ($text) {
+        $result = array();
+        foreach (Utility::removeQualifiers(Utility::explodeText($text)) as $item) {
+            $result[] = trim($item['word']);
+        }
+        return $result;
+    };
+    it('drops sensu stricto and its abbreviations', function () use ($words) {
+        assertEquals(array('Hypogastrura', 'simsi'), $words('Hypogastrura (s. str.) simsi'));
+        assertEquals(array('Hypogastrura', 'simsi'), $words('Hypogastrura (s.str.) simsi'));
+        assertEquals(array('Hypogastrura', 'simsi'), $words('Hypogastrura (s. lat.) simsi'));
+        assertEquals(array('Hypogastrura', 'simsi'), $words('Hypogastrura (s.l.) simsi'));
+        assertEquals(array('Hypogastrura', 'simsi'), $words('Hypogastrura (sensu stricto) simsi'));
+    });
+    it('leaves a real subgenus alone', function () use ($words) {
+        assertEquals(array('Felis', '(Felis)', 'leo'), $words('Felis (Felis) leo'));
+    });
+    it('leaves other parentheses alone', function () use ($words) {
+        assertEquals(array('group', '(sensu', 'Christiansen', 'and', 'Bellinger)'),
+            $words('group (sensu Christiansen and Bellinger)'));
+        assertEquals(array('form', '(Fig.', '2)'), $words('form (Fig. 2)'));
+        assertEquals(array('(summer', 'form)'), $words('(summer form)'));
+    });
+    it('keeps the offsets of the words it keeps', function () {
+        $text = 'Hypogastrura (s. str.) simsi';
+        $kept = Utility::removeQualifiers(Utility::explodeText($text));
+        assertEquals(0, $kept[0]['offset']);
+        assertEquals(23, $kept[1]['offset']);
+        assertEquals('simsi', substr($text, $kept[1]['offset'], 5));
+    });
+});
+
 describe('#ucfirst', function () {
     it('capitalizes the first letter', function () {
         assertEquals('Lower', Utility::ucfirst('lower'));
@@ -793,6 +826,20 @@ describe('Nomenclature::detect', function () {
         assertEquals('gen. n., sp. n.',
             substr($text, $found['start'], $found['end'] - $found['start']));
     });
+    it('reads annotations spelled out in words', function () use ($acts) {
+        assertEquals(array('sp. nov.'), $acts('Hypogastrura simsi| NEW SPECIES'));
+        assertEquals(array('sp. nov.'), $acts('Hypogastrura simsi| new species'));
+        assertEquals(array('syn. nov.'), $acts('Hypogastrura indiana| NEW SYNONYM.'));
+        assertEquals(array('comb. nov.'), $acts('Hypogastrura indiana| new combination'));
+        assertEquals(array('stat. nov.'), $acts('Hypogastrura indiana| NEW STATUS'));
+        assertEquals(array('gen. nov.'), $acts('Pseudoneoborus| NEW GENUS'));
+    });
+    it('does not read the spelled out words on their own as acts', function () use ($acts) {
+        // These are ordinary prose without 'new' in front of them
+        assertNull($acts('Hypogastrura indiana| synonym of harveyi'));
+        assertNull($acts('Hypogastrura indiana| combination of characters'));
+        assertNull($acts('Hypogastrura indiana| status uncertain'));
+    });
     it('finds nothing where there is nothing', function () use ($acts) {
         assertNull($acts('Felis leo| rocks'));
         assertNull($acts('Felis leo|'));
@@ -884,6 +931,20 @@ describe('#find (annotations)', function () use ($finder) {
             assertTrue($position['start'] >= 0 && $position['end'] <= strlen($text),
                 $annotation['body']['value'] . ' is within the text');
         }
+    });
+    it('reads through a sensu stricto qualifier', function () use ($finder) {
+        // A real heading from Entomological News
+        $text = 'Hypogastrura (s. str.) simsi NEW SPECIES';
+        $annotation = $finder->find($text)[0];
+        assertEquals('Hypogastrura simsi', $annotation['body']['value']);
+        // The original string keeps the qualifier, the interpreted one does not
+        assertEquals('Hypogastrura (s. str.) simsi',
+            $annotation['target']['selector'][0]['exact']);
+        assertEquals(array('sp. nov.'), $annotation['nomenclature']['acts']);
+        assertEquals('NEW SPECIES', $annotation['nomenclature']['verbatim']);
+        $position = $annotation['target']['selector'][1];
+        assertEquals($annotation['target']['selector'][0]['exact'],
+            substr($text, $position['start'], $position['end'] - $position['start']));
     });
     it('finds nothing in text without names', function () use ($finder) {
         assertEquals(array(), $finder->find('nothing to see here at all'));

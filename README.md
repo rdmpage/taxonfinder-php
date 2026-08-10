@@ -99,6 +99,11 @@ Acts are reported canonically — `sp. nov.`, `gen. nov.`, `comb. nov.`,
 — in both the `sp. n.` and `n. sp.` orders. So a new name is
 `substr($act, -4) === 'nov.'`.
 
+Spelled-out English forms are read too, so `Hypogastrura simsi NEW SPECIES`
+gives `sp. nov.` and `NEW SYNONYM` gives `syn. nov.` Those words only count
+next to `new`, since `synonym`, `status` and `combination` are ordinary prose
+on their own — `Hypogastrura indiana synonym of harveyi` reports nothing.
+
 An act without the "new" marker is reported bare: `Amanita sp.` gives `sp.`,
 meaning indeterminate rather than new. That also covers OCR damage — the real
 line `Pseudoneoborus samoanus, gen. ., sp. 0.` reports `gen.` and `sp.` rather
@@ -227,8 +232,8 @@ tools/compare.sh [path-to-node-taxonfinder] [real-text-file ...]
 ```
 
 Every name is classified individually, and anything not on the list below fails
-the run. The two implementations find the same names in every document; four
-kinds of difference are deliberate.
+the run. The two implementations agree on every document; five kinds of difference are
+deliberate.
 
 **Offsets are byte offsets, not UTF-16 offsets.** For ASCII text the two are
 identical. For text containing an em dash or an accented letter they drift
@@ -244,6 +249,15 @@ character before the name, which is one character short in `Upolu :—Vailima`,
 and lands in the middle of a multi-byte character in `1.—Onconotellus`. This
 port skips the whole run — the same run `clean()` strips before matching — so a
 reported span always brackets its name exactly.
+
+**Qualifiers are read through.** `(s. str.)`, `(s.l.)`, `(sensu stricto)` and
+their variants end the name in the JavaScript, so
+`Hypogastrura (s. str.) simsi` yields only the genus. Here they are skipped and
+the name comes out whole, with the reported span covering the qualifier — the
+original string is `Hypogastrura (s. str.) simsi`, the interpreted one
+`Hypogastrura simsi`. A real subgenus, `Felis (Felis) leo`, is untouched, and so
+is anything else in brackets, including `(sensu Christiansen and Bellinger)`,
+which qualifies a group rather than a name.
 
 **Trailing nomenclatural annotations are all removed.** The JavaScript strips at
 most one rank word, and only when the name ends in exactly `rank` or `rank.`, so
@@ -264,7 +278,7 @@ end of the string. Clamp it if that matters to you.
 php tests/run.php
 ```
 
-132 tests, a port of the original mocha suite plus tests for the PHP-specific
+139 tests, a port of the original mocha suite plus tests for the PHP-specific
 parts. No test framework required.
 
 ## Licence

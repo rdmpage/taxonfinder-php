@@ -49,6 +49,8 @@ class Parser
         if ($isHtml) {
             $wordsWithOffsets = Utility::removeTagsFromElements($wordsWithOffsets);
         }
+        // '(s. str.)' and friends would otherwise end the name at the genus.
+        $wordsWithOffsets = Utility::removeQualifiers($wordsWithOffsets);
         // Sentinel: flushes any name still being built when the text runs out.
         $wordsWithOffsets[] = array('word' => null, 'offset' => strlen((string) $text));
 
