@@ -118,6 +118,10 @@ $handwritten = array(
     'Felis (Felis) leo NEW SPECIES',
     'Amanita muscaria NEW SYNONYM.',
     'Amanita muscaria new combination',
+    'Alabameubria starki Brown, 1980:188. NEW SYNONYMY',
+    'Alabameubria starki Brown, by original designation. NEW SYNONYMY.',
+    'Felis leo Smith. New species were described from Brazil.',
+    'Amanita muscaria (Fr.) Lam., 1783. NEW COMBINATION',
 );
 
 foreach ($handwritten as $document) {

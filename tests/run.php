@@ -834,6 +834,34 @@ describe('Nomenclature::detect', function () {
         assertEquals(array('stat. nov.'), $acts('Hypogastrura indiana| NEW STATUS'));
         assertEquals(array('gen. nov.'), $acts('Pseudoneoborus| NEW GENUS'));
     });
+    it('reaches across an author citation', function () use ($acts) {
+        // From Entomological News: the annotation sits after the citation
+        assertEquals(array('syn. nov.'),
+            $acts('Alabameubria starki| Brown, 1980:188. NEW SYNONYMY'));
+        assertEquals(array('syn. nov.'),
+            $acts("Alabameubria starki| Brown, 1980:188. NEW SYNONYMY\nThe following"));
+        assertEquals(array('syn. nov.'), $acts('Felis leo| Smith, 1900, syn. nov.'));
+        assertEquals(array('comb. nov.'),
+            $acts('Amanita muscaria| (Fr.) Lam., 1783. NEW COMBINATION'));
+        assertEquals(array('syn. nov.'),
+            $acts('Felis leo| Guerin-Meneville and Horn, 1861:531. NEW SYNONYMY'));
+    });
+    it('does not reach across ordinary prose', function () use ($acts) {
+        // 'by original designation' is not a citation, and this NEW SYNONYMY
+        // belongs to the name opening the entry, not to the nearest one
+        assertNull($acts("Alabameubria starki| Brown, by original designa-\ntion. NEW SYNONYMY."));
+        assertNull($acts('Felis leo| was collected. New species were described'));
+    });
+    it('only reaches across a citation when the act finishes the line', function () use ($acts) {
+        // Otherwise the 'New species' starting the next sentence would attach
+        // itself to the name the previous sentence ended with
+        assertNull($acts('Felis leo| Smith. New species were described from Brazil.'));
+        assertEquals(array('sp. nov.'), $acts('Felis leo| Smith. New species'));
+    });
+    it('needs a surname in the citation, not just a number', function () use ($acts) {
+        assertNull($acts('Felis leo| 1923 sp. nov.'));
+        assertNull($acts('Felis leo| 1923. NEW SPECIES'));
+    });
     it('does not read the spelled out words on their own as acts', function () use ($acts) {
         // These are ordinary prose without 'new' in front of them
         assertNull($acts('Hypogastrura indiana| synonym of harveyi'));

@@ -100,9 +100,26 @@ Acts are reported canonically — `sp. nov.`, `gen. nov.`, `comb. nov.`,
 `substr($act, -4) === 'nov.'`.
 
 Spelled-out English forms are read too, so `Hypogastrura simsi NEW SPECIES`
-gives `sp. nov.` and `NEW SYNONYM` gives `syn. nov.` Those words only count
-next to `new`, since `synonym`, `status` and `combination` are ordinary prose
-on their own — `Hypogastrura indiana synonym of harveyi` reports nothing.
+gives `sp. nov.`, and `NEW SYNONYM`, `NEW SYNONYMY` and `NEW SYNONYMIES` all
+give `syn. nov.` Those words only count next to `new`, since `synonym`,
+`status` and `combination` are ordinary prose on their own —
+`Hypogastrura indiana synonym of harveyi` reports nothing.
+
+An **author citation** between the name and its annotation is stepped over, so
+
+```
+Alabameubria starki Brown, 1980:188. NEW SYNONYMY
+```
+
+attaches `syn. nov.` to `Alabameubria starki`. Only surnames, numbers and a few
+connecting words (`and`, `et al.`, `in`, `ex`, `von`, …) may appear in the gap,
+it must contain at least one surname so that a bare year does not open the
+door, and the act must finish the line. Those conditions are what stop a new
+sentence being swallowed: in `Felis leo Smith. New species were described from
+Brazil.` the act does not end the line, so nothing is attached. Ordinary prose
+in the gap ends it too — `Alabameubria starki Brown, by original designation.
+NEW SYNONYMY.` is rejected at `by`, which is right, because that annotation
+belongs to the name opening the entry rather than to the nearest one.
 
 An act without the "new" marker is reported bare: `Amanita sp.` gives `sp.`,
 meaning indeterminate rather than new. That also covers OCR damage — the real
@@ -278,7 +295,7 @@ end of the string. Clamp it if that matters to you.
 php tests/run.php
 ```
 
-139 tests, a port of the original mocha suite plus tests for the PHP-specific
+143 tests, a port of the original mocha suite plus tests for the PHP-specific
 parts. No test framework required.
 
 ## Licence

@@ -22,7 +22,7 @@ namespace Taxonfinder;
 class Nomenclature
 {
     /** How far past the end of a name to look, in bytes. */
-    const WINDOW = 48;
+    const WINDOW = 80;
 
     /**
      * Words meaning 'new'. The single letter 'n' must be lowercase, so that an
@@ -62,13 +62,32 @@ class Nomenclature
         'emend'   => array('emend.', true),
         // Spelled out, as in 'Hypogastrura (s. str.) simsi NEW SPECIES'. Only
         // counted next to 'new', since these words are common in prose.
-        'combination' => array('comb.', false),
-        'synonym'     => array('syn.', false),
-        'status'      => array('stat.', false),
-        'name'        => array('nom.', false),
-        'subspecies'  => array('subsp.', false),
-        'variety'     => array('var.', false),
-        'family'      => array('fam.', false),
+        'combination'  => array('comb.', false),
+        'combinations' => array('comb.', false),
+        'synonym'      => array('syn.', false),
+        'synonyms'     => array('syn.', false),
+        'synonymy'     => array('syn.', false),
+        'synonymies'   => array('syn.', false),
+        'status'       => array('stat.', false),
+        'name'         => array('nom.', false),
+        'names'        => array('nom.', false),
+        'subspecies'   => array('subsp.', false),
+        'variety'      => array('var.', false),
+        'varieties'    => array('var.', false),
+        'family'       => array('fam.', false),
+        'genera'       => array('gen.', false),
+    );
+
+    /**
+     * Lowercase words allowed inside an author citation between a name and its
+     * annotation, alongside capitalised surnames and numbers.
+     */
+    private static $citationWords = array(
+        'and' => true, 'et' => true, 'al' => true, 'in' => true, 'ex' => true,
+        'von' => true, 'van' => true, 'de' => true, 'del' => true, 'della' => true,
+        'da' => true, 'du' => true, 'la' => true, 'le' => true, 'den' => true,
+        'ter' => true, 'sensu' => true, 'auct' => true, 'non' => true, 'nec' => true,
+        'pp' => true, 'p' => true,
     );
 
     /**
@@ -81,7 +100,8 @@ class Nomenclature
      */
     public static function detect($text, $offset)
     {
-        $tokens = self::tokens($text, $offset);
+        $scan = self::tokens($text, $offset);
+        $tokens = $scan['tokens'];
         if (!$tokens) {
             return null;
         }
@@ -132,6 +152,14 @@ class Nomenclature
             $end++;
         }
 
+        // An annotation reached across an author citation has to finish the
+        // line, as 'Alabameubria starki Brown, 1980:188. NEW SYNONYMY' does.
+        // Without that, the 'New species' opening a following sentence would
+        // attach itself to whatever name the previous one ended with.
+        if ($scan['skippedCitation'] && !self::endsTheLine($text, $end)) {
+            return null;
+        }
+
         return array(
             'verbatim' => substr($text, $start, $end - $start),
             'acts' => $acts,
@@ -153,39 +181,83 @@ class Nomenclature
     }
 
     /**
-     * The run of words after $offset that could form an annotation. Stops at
-     * the first word that is not annotation vocabulary, and at anything other
-     * than punctuation and space between words - so a digit or another word
-     * ends the run.
+     * The run of words after $offset that could form an annotation.
      *
-     * @return array list of array('word' => string, 'offset' => int)
+     * Before the annotation there may be an author citation - 'Brown, 1980:188.'
+     * in 'Alabameubria starki Brown, 1980:188. NEW SYNONYMY' - so capitalised
+     * surnames, numbers and a few connecting words are stepped over. The
+     * citation must contain at least one surname, so a bare year does not open
+     * the door, and ordinary prose ends it: 'Brown, by original designation.'
+     * is rejected at 'by'.
+     *
+     * @return array array('tokens' => list of array('word', 'offset'),
+     *                     'skippedCitation' => bool)
      */
     private static function tokens($text, $offset)
     {
+        $empty = array('tokens' => array(), 'skippedCitation' => false);
         $window = substr($text, $offset, self::WINDOW);
         if ($window === false || $window === '') {
-            return array();
+            return $empty;
         }
-        if (!preg_match_all('/[A-Za-z]+/', $window, $matches, PREG_OFFSET_CAPTURE)) {
-            return array();
+        if (!preg_match_all('/[A-Za-z]+|[0-9]+/', $window, $matches, PREG_OFFSET_CAPTURE)) {
+            return $empty;
         }
+
         $tokens = array();
         $cursor = 0;
+        $citationWords = 0;
+        $citationSurnames = 0;
         foreach ($matches[0] as $match) {
             list($word, $position) = $match;
-            // Punctuation and space only between the words. A digit or any
-            // other word ends the run.
+            // Only punctuation and space between the words.
             $gap = substr($window, $cursor, $position - $cursor);
             if (!preg_match('/^[^0-9A-Za-z]*$/D', $gap)) {
                 break;
             }
             $lower = strtolower($word);
-            if (!isset(self::$acts[$lower]) && !self::isNewMarker($word)) {
+            if (isset(self::$acts[$lower]) || self::isNewMarker($word)) {
+                $tokens[] = array('word' => $word, 'offset' => $offset + $position);
+                $cursor = $position + strlen($word);
+                continue;
+            }
+            // Not vocabulary. Part of a citation before the annotation?
+            if ($tokens || !self::isCitationWord($word)) {
                 break;
             }
-            $tokens[] = array('word' => $word, 'offset' => $offset + $position);
+            if (preg_match('/^[A-Z]/', $word)) {
+                $citationSurnames++;
+            }
+            $citationWords++;
             $cursor = $position + strlen($word);
         }
-        return $tokens;
+
+        if (!$tokens) {
+            return $empty;
+        }
+        if ($citationWords > 0 && $citationSurnames === 0) {
+            return $empty;
+        }
+        return array('tokens' => $tokens, 'skippedCitation' => $citationWords > 0);
+    }
+
+    /** A surname, a number, or one of the words that join them. */
+    private static function isCitationWord($word)
+    {
+        if (preg_match('/^[0-9]+$/D', $word)) {
+            return true;
+        }
+        if (preg_match('/^[A-Z][A-Za-z]*$/D', $word)) {
+            return true;
+        }
+        return isset(self::$citationWords[strtolower($word)]);
+    }
+
+    /** Is there nothing but punctuation between $end and the end of its line? */
+    private static function endsTheLine($text, $end)
+    {
+        $lineEnd = strpos($text, "\n", $end);
+        $rest = $lineEnd === false ? substr($text, $end) : substr($text, $end, $lineEnd - $end);
+        return !preg_match('/[0-9A-Za-z]/', (string) $rest);
     }
 }
