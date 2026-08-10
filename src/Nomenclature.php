@@ -24,71 +24,26 @@ class Nomenclature
     /** How far past the end of a name to look, in bytes. */
     const WINDOW = 80;
 
+    /** @var bool has dictionaries/annotations.txt been read yet */
+    private static $loaded = false;
+
     /**
      * Words meaning 'new'. The single letter 'n' must be lowercase, so that an
      * author's initial in 'Amanita sp. N. Smith' is not read as an act.
      */
-    private static $newMarkers = array(
-        'nov' => true, 'nova' => true, 'novum' => true, 'novus' => true, 'n' => true,
-        'new' => true,
-    );
+    private static $newMarkers = array();
 
     /**
-     * Act words, as canonical form => may it stand without a 'new' marker.
-     * 'f' only counts next to a 'new' marker, because a bare 'f.' after a name
-     * is as likely to be a figure or a female symbol as a forma.
+     * Act words: lowercase word => array(canonical form, may it stand
+     * without a 'new' marker).
      */
-    private static $acts = array(
-        'sp'      => array('sp.', true),
-        'spec'    => array('sp.', true),
-        'species' => array('sp.', true),
-        'gen'     => array('gen.', true),
-        'genus'   => array('gen.', true),
-        'comb'    => array('comb.', true),
-        'syn'     => array('syn.', true),
-        'stat'    => array('stat.', true),
-        'nom'     => array('nom.', true),
-        'subsp'   => array('subsp.', true),
-        'ssp'     => array('subsp.', true),
-        'var'     => array('var.', true),
-        'fam'     => array('fam.', true),
-        'subgen'  => array('subgen.', true),
-        'subfam'  => array('subfam.', true),
-        'forma'   => array('forma', true),
-        'f'       => array('f.', false),
-        'cf'      => array('cf.', true),
-        'aff'     => array('aff.', true),
-        'ined'    => array('ined.', true),
-        'emend'   => array('emend.', true),
-        // Spelled out, as in 'Hypogastrura (s. str.) simsi NEW SPECIES'. Only
-        // counted next to 'new', since these words are common in prose.
-        'combination'  => array('comb.', false),
-        'combinations' => array('comb.', false),
-        'synonym'      => array('syn.', false),
-        'synonyms'     => array('syn.', false),
-        'synonymy'     => array('syn.', false),
-        'synonymies'   => array('syn.', false),
-        'status'       => array('stat.', false),
-        'name'         => array('nom.', false),
-        'names'        => array('nom.', false),
-        'subspecies'   => array('subsp.', false),
-        'variety'      => array('var.', false),
-        'varieties'    => array('var.', false),
-        'family'       => array('fam.', false),
-        'genera'       => array('gen.', false),
-    );
+    private static $acts = array();
 
     /**
-     * Lowercase words allowed inside an author citation between a name and its
-     * annotation, alongside capitalised surnames and numbers.
+     * Lowercase words allowed inside an author citation between a name and
+     * its annotation, alongside capitalised surnames and numbers.
      */
-    private static $citationWords = array(
-        'and' => true, 'et' => true, 'al' => true, 'in' => true, 'ex' => true,
-        'von' => true, 'van' => true, 'de' => true, 'del' => true, 'della' => true,
-        'da' => true, 'du' => true, 'la' => true, 'le' => true, 'den' => true,
-        'ter' => true, 'sensu' => true, 'auct' => true, 'non' => true, 'nec' => true,
-        'pp' => true, 'p' => true,
-    );
+    private static $citationWords = array();
 
     /**
      * Look for an annotation starting at $offset (the end of a name).
@@ -100,6 +55,7 @@ class Nomenclature
      */
     public static function detect($text, $offset)
     {
+        self::load();
         $scan = self::tokens($text, $offset);
         $tokens = $scan['tokens'];
         if (!$tokens) {
@@ -168,6 +124,116 @@ class Nomenclature
         );
     }
 
+    /**
+     * Read the shipped vocabulary, and dictionaries/local/annotations.txt if
+     * it is there. Called automatically; only needed directly if you want the
+     * vocabulary before the first detect().
+     */
+    public static function load()
+    {
+        if (self::$loaded) {
+            return;
+        }
+        self::$loaded = true;
+        $directory = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'dictionaries';
+        self::readFile($directory . DIRECTORY_SEPARATOR . 'annotations.txt');
+        $local = $directory . DIRECTORY_SEPARATOR . 'local'
+            . DIRECTORY_SEPARATOR . 'annotations.txt';
+        if (is_file($local)) {
+            self::readFile($local);
+        }
+    }
+
+    /**
+     * Merge another vocabulary file on top. See dictionaries/annotations.txt
+     * for the format.
+     */
+    public static function addFile($file)
+    {
+        self::load();
+        self::readFile($file);
+    }
+
+    /**
+     * Add one entry at runtime.
+     *
+     *   Nomenclature::add('act', 'nudum', 'nom. nud.', true);
+     *   Nomenclature::add('new', 'novissima');
+     *   Nomenclature::add('cite', 'apud');
+     *
+     * @param string      $type      'new', 'act' or 'cite'
+     * @param string      $word
+     * @param string|null $canonical how an act is reported; required for acts
+     * @param bool        $mayStandAlone may an act appear without a 'new' word
+     */
+    public static function add($type, $word, $canonical = null, $mayStandAlone = false)
+    {
+        self::load();
+        $word = strtolower(trim($word));
+        if ($word === '') {
+            return;
+        }
+        switch (strtolower($type)) {
+            case 'new':
+                self::$newMarkers[$word] = true;
+                break;
+            case 'act':
+                if ($canonical === null) {
+                    throw new \InvalidArgumentException("An act needs a canonical form: $word");
+                }
+                self::$acts[$word] = array($canonical, (bool) $mayStandAlone);
+                break;
+            case 'cite':
+                self::$citationWords[$word] = true;
+                break;
+            default:
+                throw new \InvalidArgumentException("Unknown annotation type: $type");
+        }
+    }
+
+    /** Forget everything, so the next use reloads from disk. For tests. */
+    public static function reset()
+    {
+        self::$loaded = false;
+        self::$newMarkers = array();
+        self::$acts = array();
+        self::$citationWords = array();
+    }
+
+    private static function readFile($file)
+    {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            throw new \RuntimeException('Could not read annotation vocabulary: ' . $file);
+        }
+        if (substr($contents, 0, 3) === "\xEF\xBB\xBF") {
+            $contents = substr($contents, 3);
+        }
+        foreach (explode("\n", $contents) as $number => $line) {
+            $line = trim($line);
+            if ($line === '' || $line[0] === '#') {
+                continue;
+            }
+            $columns = preg_split('/\s+/', $line);
+            $type = strtolower($columns[0]);
+            if (!isset($columns[1])) {
+                throw new \RuntimeException(sprintf(
+                    '%s line %d: "%s" needs a word', $file, $number + 1, $type));
+            }
+            if ($type === 'act') {
+                if (!isset($columns[2])) {
+                    throw new \RuntimeException(sprintf(
+                        '%s line %d: act "%s" needs a canonical form',
+                        $file, $number + 1, $columns[1]));
+                }
+                $bare = isset($columns[3]) && strtolower($columns[3]) === 'bare';
+                self::add('act', $columns[1], $columns[2], $bare);
+            } else {
+                self::add($type, $columns[1]);
+            }
+        }
+    }
+
     /** Is this the 'new' marker? A bare 'n' has to be lowercase. */
     private static function isNewMarker($word)
     {
@@ -208,6 +274,7 @@ class Nomenclature
         $cursor = 0;
         $citationWords = 0;
         $citationSurnames = 0;
+        $firstAct = null;
         foreach ($matches[0] as $match) {
             list($word, $position) = $match;
             // Only punctuation and space between the words.
@@ -217,6 +284,9 @@ class Nomenclature
             }
             $lower = strtolower($word);
             if (isset(self::$acts[$lower]) || self::isNewMarker($word)) {
+                if ($firstAct === null) {
+                    $firstAct = $position;
+                }
                 $tokens[] = array('word' => $word, 'offset' => $offset + $position);
                 $cursor = $position + strlen($word);
                 continue;
@@ -235,8 +305,18 @@ class Nomenclature
         if (!$tokens) {
             return $empty;
         }
-        if ($citationWords > 0 && $citationSurnames === 0) {
-            return $empty;
+        if ($citationWords > 0) {
+            // A citation needs a surname; a bare year is not enough.
+            if ($citationSurnames === 0) {
+                return $empty;
+            }
+            // And it sits on the same line as the name. Without this, the
+            // '201' and 'Onconotellus' of a page break and the heading after
+            // it read as a citation, and the heading's 'gen. n.' is taken by
+            // the last name on the previous page.
+            if (strpos(substr($window, 0, $firstAct), "\n") !== false) {
+                return $empty;
+            }
         }
         return array('tokens' => $tokens, 'skippedCitation' => $citationWords > 0);
     }

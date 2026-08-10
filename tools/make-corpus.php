@@ -122,6 +122,9 @@ $handwritten = array(
     'Alabameubria starki Brown, by original designation. NEW SYNONYMY.',
     'Felis leo Smith. New species were described from Brazil.',
     'Amanita muscaria (Fr.) Lam., 1783. NEW COMBINATION',
+    'Merragata quieta Drake, new species',
+    'M. hebroides B. -White ( new synonymy) .',
+    'Anthocoridae. 201\n\nOnconotellus, gen. n.',
 );
 
 foreach ($handwritten as $document) {

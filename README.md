@@ -106,20 +106,55 @@ give `syn. nov.` Those words only count next to `new`, since `synonym`,
 `Hypogastrura indiana synonym of harveyi` reports nothing.
 
 An **author citation** between the name and its annotation is stepped over, so
+both of these attach:
 
 ```
 Alabameubria starki Brown, 1980:188. NEW SYNONYMY
+Merragata quieta Drake, new species
 ```
 
-attaches `syn. nov.` to `Alabameubria starki`. Only surnames, numbers and a few
-connecting words (`and`, `et al.`, `in`, `ex`, `von`, …) may appear in the gap,
-it must contain at least one surname so that a bare year does not open the
-door, and the act must finish the line. Those conditions are what stop a new
-sentence being swallowed: in `Felis leo Smith. New species were described from
-Brazil.` the act does not end the line, so nothing is attached. Ordinary prose
-in the gap ends it too — `Alabameubria starki Brown, by original designation.
-NEW SYNONYMY.` is rejected at `by`, which is right, because that annotation
-belongs to the name opening the entry rather than to the nearest one.
+That reach is fenced in four ways, because it is the part most likely to grab
+something it shouldn't:
+
+* only surnames, numbers and a few connecting words (`and`, `et al.`, `in`,
+  `ex`, `von`, …) may appear in the gap — prose ends it, so
+  `Alabameubria starki Brown, by original designation. NEW SYNONYMY.` is
+  rejected at `by`;
+* the gap must hold at least one surname, so a bare year is not enough;
+* the gap must stay on one line, so a page number and the heading after it
+  cannot pass as a citation;
+* the act must finish its line, so `Felis leo Smith. New species were described
+  from Brazil.` attaches nothing.
+
+Two of those came from real false positives: without the line rule, `201` and
+`Onconotellus` across a page break read as a citation and the next heading's
+`gen. n.` was taken by the last name on the previous page. The rejected
+`by original designation` case is also the right answer rather than a missed
+one — that annotation belongs to the name opening the entry, not to the
+nearest name before it.
+
+### The annotation vocabulary
+
+The words above live in `dictionaries/annotations.txt`, not in the code, so you
+can add to them the same way you add names:
+
+```
+new   nov
+act   sp            sp.        bare
+act   synonymy      syn.
+cite  et
+```
+
+`new` is a word meaning new. `act` is a nomenclatural act and how to report it;
+`bare` means it may stand on its own, which is right for `sp.` (indeterminate)
+but not for English words like `synonym`. `cite` is a lowercase word allowed
+inside an author citation. Put your own in `dictionaries/local/annotations.txt`
+and they are merged on top, or add them at runtime:
+
+```php
+Taxonfinder\Nomenclature::add('act', 'nudum', 'nom. nud.', true);
+Taxonfinder\Nomenclature::addFile('/path/to/more-annotations.txt');
+```
 
 An act without the "new" marker is reported bare: `Amanita sp.` gives `sp.`,
 meaning indeterminate rather than new. That also covers OCR damage — the real
@@ -186,6 +221,7 @@ Almost all of taxonfinder's behaviour comes from the plain text files in
 | `overlap_new.txt` | words that look like names but never are — `Goliath`, `Data` |
 | `species_bad.txt` | epithets never to accept — `phobia`, `drill` |
 | `dict_bad.txt` | whole names never to report — `Stella marina` |
+| `annotations.txt` | nomenclatural annotation vocabulary — `sp. nov.`, `NEW SYNONYMY`, … |
 
 Case and order don't matter, blank lines are ignored, duplicates are fine.
 
@@ -295,7 +331,7 @@ end of the string. Clamp it if that matters to you.
 php tests/run.php
 ```
 
-143 tests, a port of the original mocha suite plus tests for the PHP-specific
+148 tests, a port of the original mocha suite plus tests for the PHP-specific
 parts. No test framework required.
 
 ## Licence

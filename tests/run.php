@@ -858,6 +858,15 @@ describe('Nomenclature::detect', function () {
         assertNull($acts('Felis leo| Smith. New species were described from Brazil.'));
         assertEquals(array('sp. nov.'), $acts('Felis leo| Smith. New species'));
     });
+    it('does not follow a citation across a line break', function () use ($acts) {
+        // A page number and the heading after it look exactly like a citation.
+        // Without this the heading's own 'gen. n.' is taken by the last name
+        // on the previous page.
+        assertNull($acts("Anthocoridae| . 201 \n\n\nOnconotellus, gen. n."));
+        assertNull($acts("Lygus| . \n\n\nPlesiolygus, gen. n."));
+        // ...but an annotation right after the name may still wrap
+        assertEquals(array('sp. nov.'), $acts("Amanita muscaria|\nsp. nov."));
+    });
     it('needs a surname in the citation, not just a number', function () use ($acts) {
         assertNull($acts('Felis leo| 1923 sp. nov.'));
         assertNull($acts('Felis leo| 1923. NEW SPECIES'));
@@ -885,6 +894,57 @@ describe('Nomenclature::detect', function () {
         assertEquals(array('sp. nov.'), $acts('Felis leo| sp. n. and then some words'));
         // A digit between the words ends the run, so only 'var' is read
         assertEquals(array('var.'), $acts('Felis leo| var 3 nov.'));
+    });
+});
+
+describe('the annotation vocabulary', function () {
+    $acts = function ($text) {
+        $end = strpos($text, '|');
+        $text = str_replace('|', '', $text);
+        $found = Taxonfinder\Nomenclature::detect($text, $end);
+        return $found === null ? null : $found['acts'];
+    };
+    it('comes from dictionaries/annotations.txt', function () use ($acts) {
+        assertTrue(is_file(dirname(__DIR__) . '/dictionaries/annotations.txt'),
+            'the vocabulary file exists');
+        Taxonfinder\Nomenclature::reset();
+        // One entry from each section of the file: an act, a new marker
+        // reached through a citation, and a citation word
+        assertEquals(array('sp. nov.'), $acts('Felis leo| sp. nov.'));
+        assertEquals(array('syn. nov.'), $acts('Felis leo| Brown et al., 1980. NEW SYNONYMY'));
+    });
+    it('takes additions at runtime', function () use ($acts) {
+        assertNull($acts('Felis leo| nudum'));
+        Taxonfinder\Nomenclature::add('act', 'nudum', 'nom. nud.', true);
+        assertEquals(array('nom. nud.'), $acts('Felis leo| nudum'));
+        Taxonfinder\Nomenclature::reset();
+        assertNull($acts('Felis leo| nudum'));
+    });
+    it('merges a vocabulary file', function () use ($acts) {
+        $file = sys_get_temp_dir() . '/taxonfinder-annotations-' . getmypid() . '.txt';
+        file_put_contents($file, "# a comment\n\nact  zzztest  test.  bare\nnew  novissima\n");
+        Taxonfinder\Nomenclature::reset();
+        Taxonfinder\Nomenclature::addFile($file);
+        assertEquals(array('test.'), $acts('Felis leo| zzztest'));
+        assertEquals(array('test. nov.'), $acts('Felis leo| zzztest novissima'));
+        // the shipped vocabulary is still there
+        assertEquals(array('sp. nov.'), $acts('Felis leo| sp. nov.'));
+        unlink($file);
+        Taxonfinder\Nomenclature::reset();
+    });
+    it('rejects a malformed line', function () {
+        $file = sys_get_temp_dir() . '/taxonfinder-bad-' . getmypid() . '.txt';
+        file_put_contents($file, "act  missingcanonical\n");
+        Taxonfinder\Nomenclature::reset();
+        $thrown = false;
+        try {
+            Taxonfinder\Nomenclature::addFile($file);
+        } catch (Exception $e) {
+            $thrown = strpos($e->getMessage(), 'canonical') !== false;
+        }
+        unlink($file);
+        Taxonfinder\Nomenclature::reset();
+        assertTrue($thrown, 'a malformed line is reported');
     });
 });
 

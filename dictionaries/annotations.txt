@@ -1,0 +1,99 @@
+# Nomenclatural annotation vocabulary, read by Taxonfinder\Nomenclature.
+#
+# Three kinds of line, columns separated by spaces or tabs:
+#
+#   new   <word>                       a word meaning "new"
+#   act   <word>  <canonical>  [bare]  a nomenclatural act. Written "bare" it
+#                                      may be reported on its own; otherwise it
+#                                      only counts next to a "new" word
+#   cite  <word>                       a word allowed inside an author citation
+#                                      standing between a name and its act
+#
+# Blank lines and lines starting with # are ignored, and case does not matter.
+# A single letter "new" marker is only accepted in lowercase, so that the
+# initial in "Amanita sp. N. Smith" is not read as an act.
+#
+# To add your own without touching this file, put them in
+# dictionaries/local/annotations.txt, which is merged on top.
+
+# ---------------------------------------------------------------- new
+new   nov
+new   nova
+new   novum
+new   novus
+new   n
+new   new
+
+# ---------------------------------------------------------------- acts
+# Abbreviated. These stand on their own: "Amanita sp." is an indeterminate
+# species, not a new one, and is worth reporting as such.
+act   sp          sp.        bare
+act   spec        sp.        bare
+act   species     sp.        bare
+act   gen         gen.       bare
+act   genus       gen.       bare
+act   comb        comb.      bare
+act   syn         syn.       bare
+act   stat        stat.      bare
+act   nom         nom.       bare
+act   subsp       subsp.     bare
+act   ssp         subsp.     bare
+act   var         var.       bare
+act   fam         fam.       bare
+act   subgen      subgen.    bare
+act   subfam      subfam.    bare
+act   forma       forma      bare
+act   cf          cf.        bare
+act   aff         aff.       bare
+act   ined        ined.      bare
+act   emend       emend.     bare
+
+# A bare "f." after a name is as likely to be a figure or a female symbol as
+# a forma, so it only counts next to a "new" word.
+act   f           f.
+
+# Spelled out, as in "Merragata quieta Drake, new species" and
+# "M. hebroides B.-White (new synonymy)". These are ordinary English words, so
+# none of them stands alone - "a synonym of harveyi" is not an act.
+act   combination   comb.
+act   combinations  comb.
+act   synonym       syn.
+act   synonyms      syn.
+act   synonymy      syn.
+act   synonymies    syn.
+act   status        stat.
+act   name          nom.
+act   names         nom.
+act   subspecies    subsp.
+act   variety       var.
+act   varieties     var.
+act   family        fam.
+act   genera        gen.
+
+# ---------------------------------------------------------------- citation
+# Words that may appear in an author citation between a name and its act, as
+# "Brown" and "1980" do in "Alabameubria starki Brown, 1980:188. NEW SYNONYMY".
+# Capitalised words and numbers are always allowed; these are the lowercase
+# ones that also belong to a citation rather than to ordinary prose.
+cite  and
+cite  et
+cite  al
+cite  in
+cite  ex
+cite  von
+cite  van
+cite  de
+cite  del
+cite  della
+cite  da
+cite  du
+cite  la
+cite  le
+cite  den
+cite  ter
+cite  sensu
+cite  auct
+cite  non
+cite  nec
+cite  pp
+cite  p
