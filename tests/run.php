@@ -787,6 +787,49 @@ describe('#names', function () use ($finder) {
     });
 });
 
+describe('#markText', function () use ($finder) {
+    it('wraps found names in <mark>, inside a plain <html> element', function () use ($finder) {
+        assertEquals(
+            "<html>\n<meta charset=\"utf-8\">\n"
+            . "Wow, <mark>Felis leo</mark> rocks\n</html>\n",
+            $finder->markText('Wow, Felis leo rocks')
+        );
+    });
+    it('ends each line with <br>', function () use ($finder) {
+        assertEquals(
+            "<html>\n<meta charset=\"utf-8\">\n"
+            . "<mark>Felis leo</mark><br>\n<mark>Amanita muscaria</mark>\n</html>\n",
+            $finder->markText("Felis leo\nAmanita muscaria")
+        );
+    });
+    it('reads a carriage return as the end of a line too', function () use ($finder) {
+        assertEquals(
+            "<html>\n<meta charset=\"utf-8\">\n"
+            . "a<br>\nb<br>\nc\n</html>\n",
+            $finder->markText("a\r\nb\rc")
+        );
+    });
+    it('escapes markup in the source text', function () use ($finder) {
+        assertEquals(
+            "<html>\n<meta charset=\"utf-8\">\n"
+            . "&lt;b&gt; &amp; <mark>Felis leo</mark>\n</html>\n",
+            $finder->markText('<b> & Felis leo')
+        );
+    });
+    it('leaves text without names alone', function () use ($finder) {
+        assertEquals(
+            "<html>\n<meta charset=\"utf-8\">\nnothing here\n</html>\n",
+            $finder->markText('nothing here')
+        );
+    });
+    it('marks HTML in place, without escaping or a wrapper', function () use ($finder) {
+        assertEquals(
+            '<p>Wow, <mark>Felis leo</mark> rocks</p>',
+            $finder->markText('<p>Wow, Felis leo rocks</p>', true)
+        );
+    });
+});
+
 describe('Nomenclature::detect', function () {
     /** Detect the annotation following $name in $text. */
     $acts = function ($text) {

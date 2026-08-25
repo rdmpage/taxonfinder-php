@@ -65,3 +65,17 @@ if (!function_exists('taxonfinder_tag')) {
         return taxonfinder()->tagText($text, $isHtml);
     }
 }
+
+if (!function_exists('taxonfinder_mark')) {
+    /**
+     * Render $text as plain HTML with every name found wrapped in <mark>.
+     *
+     * @param string $text
+     * @param bool   $isHtml
+     * @return string
+     */
+    function taxonfinder_mark($text, $isHtml = false)
+    {
+        return taxonfinder()->markText($text, $isHtml);
+    }
+}

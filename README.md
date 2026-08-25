@@ -44,12 +44,13 @@ only affects lowercasing of accented characters.
 
 ## Using it
 
-The three convenience functions cover most needs:
+The convenience functions cover most needs:
 
 ```php
 taxonfinder_find($text, $isHtml = false);   // annotation records
 taxonfinder_names($text, $isHtml = false);  // just the unique names
 taxonfinder_tag($text, $isHtml = false);    // $text with <name> elements added
+taxonfinder_mark($text, $isHtml = false);   // $text as HTML, names in <mark>
 ```
 
 Pass `true` as the second argument when the input is HTML. Tags are then
@@ -168,6 +169,33 @@ A capitalised `N.` is treated as an author's initial, not as `novum`, so
 Running this over the 80 KB *Insects of Samoa* fascicle finds 285 names, 58 of
 them annotated: 45 `sp. nov.`, 8 `gen. nov.`, 2 `var. nov.`, 6 bare `sp.`
 
+### Highlighted HTML
+
+`taxonfinder_mark()` renders the source text as HTML with every name wrapped in
+`<mark>`, for reading the result rather than processing it:
+
+```php
+echo taxonfinder_mark("Wow, Felis leo rocks.\nAnd Amanita muscaria too.");
+```
+
+```html
+<html>
+<meta charset="utf-8">
+Wow, <mark>Felis leo</mark> rocks.<br>
+And <mark>Amanita muscaria</mark> too.
+</html>
+```
+
+The HTML is deliberately plain: an `<html>` element around the text, a charset
+declaration so accented names survive the round trip, `<br>` at the end of each
+line, and `<mark>` around each name. No head, no styling, no classes, so you
+can drop it into a page of your own or style the `<mark>` however you like.
+Markup characters in the source are escaped, and a name reported inside one
+already marked is skipped rather than nesting a second `<mark>`.
+
+If the input is already HTML, pass `true` and the `<mark>` elements are
+injected into it in place: no escaping, no `<br>`, no wrapper.
+
 ### Keeping an instance
 
 If you are processing many documents, keep one `Finder` so the dictionaries are
@@ -193,6 +221,8 @@ bin/taxonfinder --compact paper.txt       # one line of JSON
 bin/taxonfinder --context=64 paper.txt    # more context in the quote selector
 bin/taxonfinder --names paper.txt         # just the unique names
 bin/taxonfinder --html --tag page.html    # mark up the text in place
+bin/taxonfinder --mark paper.txt \
+  > paper.html                            # HTML with the names in <mark>
 cat paper.txt | bin/taxonfinder
 ```
 

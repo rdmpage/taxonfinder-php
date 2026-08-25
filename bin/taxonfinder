@@ -6,6 +6,7 @@
  *   bin/taxonfinder paper.txt
  *   cat paper.txt | bin/taxonfinder
  *   bin/taxonfinder --html --tag page.html
+ *   bin/taxonfinder --mark paper.txt > paper.html
  */
 
 require __DIR__ . '/../autoload.php';
@@ -23,6 +24,7 @@ foreach (array_slice($argv, 1) as $argument) {
         case '--compact': $options['pretty'] = false; break;
         case '--names': $options['format'] = 'names'; break;
         case '--tag': $options['format'] = 'tag'; break;
+        case '--mark': $options['format'] = 'mark'; break;
         case '-h':
         case '--help':
             usage(0);
@@ -51,6 +53,9 @@ foreach ($files as $file) {
     switch ($options['format']) {
         case 'tag':
             echo $finder->tagText($text, $options['html']);
+            break;
+        case 'mark':
+            echo $finder->markText($text, $options['html']);
             break;
         case 'names':
             foreach ($finder->names($text, $options['html']) as $name) {
@@ -98,6 +103,7 @@ nov.') under nomenclature.
   --context=N    bytes of context either side of a name (default 32)
   --names        print just the unique names, one per line
   --tag          print the input with every name wrapped in a <name> element
+  --mark         print the input as HTML with every name wrapped in <mark>
   --help         show this message
 
 TEXT

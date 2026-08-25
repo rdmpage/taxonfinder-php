@@ -32,6 +32,9 @@ class Finder
     /** @var NameTag */
     private $nameTag;
 
+    /** @var Marker */
+    private $marker;
+
     /**
      * @param Dictionaries|null $dictionaries  pass your own to use a custom set
      *                                         of dictionary files
@@ -43,6 +46,7 @@ class Finder
         $this->parser = new Parser($dictionaries);
         $this->annotator = new Annotator($this->parser, $contextLength);
         $this->nameTag = new NameTag($this->parser);
+        $this->marker = new Marker($this->parser);
     }
 
     /**
@@ -71,6 +75,15 @@ class Finder
     public function tagText($text, $isHtml = false)
     {
         return $this->nameTag->tagText($text, $isHtml);
+    }
+
+    /**
+     * Return $text as plain HTML with every name wrapped in <mark>. See Marker
+     * for the shape of the output.
+     */
+    public function markText($text, $isHtml = false)
+    {
+        return $this->marker->markText($text, $isHtml);
     }
 
     /** How much context each TextQuoteSelector carries. Default 32 bytes. */
