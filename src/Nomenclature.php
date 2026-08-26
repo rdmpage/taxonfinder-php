@@ -350,7 +350,8 @@ class Nomenclature
                 break;
             }
             $lower = strtolower($word);
-            if (isset(self::$acts[$lower]) || self::isNewMarker($word)) {
+            if ((isset(self::$acts[$lower]) && self::actNotAnInitial($matches[0], $index))
+                || self::isNewMarker($word)) {
                 if ($firstAct === null) {
                     $firstAct = $position;
                 }
@@ -442,6 +443,33 @@ class Nomenclature
             $acts[$index] = $act . ' nov.';
         }
         return $acts;
+    }
+
+    /**
+     * A one letter act, or somebody's initial?
+     *
+     * 'g' is an act because a new genus is written 'n. g.', and 'f' because a
+     * new form is written 'f. nov.'. They are also how half the botanists in
+     * the literature abbreviate their names: 'T.G.Gao', 'R.F. Castaneda',
+     * 'G.Watt'. Read as an act, an initial ends the scan of the citation and
+     * takes the real act behind it down with it - two combinations lost in
+     * one PhytoKeys paper, and two registry numbers in Mycotaxon 136(1).
+     *
+     * A letter only counts as an act with a "new" word beside it, before it
+     * as in 'n. g.' or after it as in 'g. n.'. An initial never has one.
+     * Longer acts are unaffected: nobody is abbreviated 'sp'.
+     */
+    private static function actNotAnInitial(array $matches, $index)
+    {
+        if (strlen($matches[$index][0]) > 1) {
+            return true;
+        }
+        foreach (array($index - 1, $index + 1) as $beside) {
+            if (isset($matches[$beside]) && self::isNewMarker($matches[$beside][0])) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Is the next word an act, or the marker that makes one? */

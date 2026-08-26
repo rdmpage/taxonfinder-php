@@ -1002,6 +1002,32 @@ describe('#markText and nomenclature', function () use ($finder) {
     });
 });
 
+describe('a one letter act against an initial', function () {
+    $acts = function ($text, $end) {
+        $found = Taxonfinder\Nomenclature::detect($text, $end);
+        return $found === null ? array() : $found['acts'];
+    };
+    it('reads an act through an initial that looks like one', function () use ($acts) {
+        // G is an act, for 'n. g.', and also how G.Watt signs his name
+        assertEquals(array('comb. nov.'),
+            $acts('Oreoseris lacei (G.Watt) V.A.Funk & W.Zheng, comb. nov.', 15));
+        assertEquals(array('comb. nov.'),
+            $acts('Oreoseris rupicola (T.G.Gao & D.J.N.Hind) X.D.Xu & V.A.Funk, comb. nov.', 18));
+    });
+    it('reads one through an F initial too', function () use ($acts) {
+        assertEquals(array('sp. nov.'),
+            $acts('Camposporium chinense Jian Ma & R.F. Castaneda, sp. nov.', 21));
+    });
+    it('still reads the one letter acts themselves', function () use ($acts) {
+        assertEquals(array('gen. nov.'), $acts('GREENIDEA, n. g.', 9));
+        assertEquals(array('gen. nov.'), $acts('Hyalopterus, g. n.', 11));
+        assertEquals(array('f. nov.'), $acts('Amanita muscaria f. nov.', 16));
+    });
+    it('leaves a lone letter alone', function () use ($acts) {
+        assertEquals(array(), $acts('Plate II, g.', 8));
+    });
+});
+
 describe('acts joined into one run', function () {
     $acts = function ($text, $end) {
         $found = Taxonfinder\Nomenclature::detect($text, $end);
