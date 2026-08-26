@@ -107,7 +107,50 @@ class Annotator
                 });
             }
         }
+
+        self::attachIdentifiers($text, $annotations);
         return $annotations;
+    }
+
+    /**
+     * Hand each registry identifier to the annotation it sits under.
+     *
+     * Worked from the identifier back to the name rather than from each name
+     * forward, because a name is repeated all through a paper - the one in
+     * this test appears eight times - and searching forward would give every
+     * mention the same LSID. There is one identifier and it belongs to the
+     * act it is printed beneath, which is the nearest name before it.
+     */
+    private static function attachIdentifiers($text, array &$annotations)
+    {
+        $identifiers = Identifiers::find($text);
+        if (!$identifiers || !$annotations) {
+            return;
+        }
+        foreach ($identifiers as $identifier) {
+            $best = null;
+            $nearest = null;
+            foreach ($annotations as $index => $annotation) {
+                // An act sits between the name and its identifier, so the
+                // reach is measured from whichever of them ends later.
+                $end = $annotation['target']['selector'][1]['end'];
+                if (isset($annotation['nomenclature'])) {
+                    $end = max($end, $annotation['nomenclature']['end']);
+                }
+                if ($end > $identifier['start']) {
+                    continue;
+                }
+                $distance = $identifier['start'] - $end;
+                if ($distance <= Identifiers::REACH
+                    && ($nearest === null || $distance < $nearest)) {
+                    $nearest = $distance;
+                    $best = $index;
+                }
+            }
+            if ($best !== null) {
+                $annotations[$best]['identifiers'][] = $identifier;
+            }
+        }
     }
 
     /** One annotation record for a name found between $start and $end. */

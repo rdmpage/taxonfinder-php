@@ -171,7 +171,29 @@ if ($strayed) {
 }
 
 /**
- * The names carrying a nomenclatural act, as PageID, name, act.
+ * The registry identifier printed under an act, where the paper gives one.
+ *
+ * An act LSID is preferred: it names the act itself, which is what a row of
+ * this table is. Anything else the annotation carries will do otherwise, and
+ * an empty column where the paper registered nothing - which is most of BHL,
+ * registration being a thing of the last twenty years.
+ */
+function identifierFor(array $annotation)
+{
+    if (!isset($annotation['identifiers'])) {
+        return '';
+    }
+    foreach ($annotation['identifiers'] as $identifier) {
+        if ($identifier['type'] === 'act') {
+            return $identifier['value'];
+        }
+    }
+    return $annotation['identifiers'][0]['value'];
+}
+
+/**
+ * The names carrying a nomenclatural act, as PageID, name, act and the
+ * registry identifier printed under it.
  *
  * One row per act, so the column holds one value and can be grouped on: a
  * genus and species published together carry 'gen. nov.' and 'sp. nov.' and
@@ -189,7 +211,7 @@ function writeActs($path, array $annotations, $qualifiers)
         fwrite(STDERR, "Could not write $path\n");
         exit(1);
     }
-    fwrite($handle, "PageID\tname\tact\n");
+    fwrite($handle, "PageID\tname\tact\tidentifier\n");
     $rows = 0;
     foreach ($annotations as $annotation) {
         if (!isset($annotation['nomenclature'])) {
@@ -203,6 +225,7 @@ function writeActs($path, array $annotations, $qualifiers)
                 $annotation['target']['source'],
                 $annotation['body']['value'],
                 $act,
+                identifierFor($annotation),
             )) . "\n");
             $rows++;
         }

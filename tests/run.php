@@ -1205,6 +1205,86 @@ describe('#setCarryOverKeyGenus', function () {
     });
 });
 
+describe('Identifiers::find', function () {
+    $one = function ($text) {
+        $found = Taxonfinder\Identifiers::find($text);
+        return $found ? $found[0] : null;
+    };
+    it('reads a ZooBank act LSID', function () use ($one) {
+        $found = $one('Gulella salpinx sp. nov. urn:lsid:zoobank.org:act:C7607188-AF52-4258-BF6A-4956282B6671');
+        assertEquals('zoobank', $found['scheme']);
+        assertEquals('act', $found['type']);
+        assertEquals('urn:lsid:zoobank.org:act:C7607188-AF52-4258-BF6A-4956282B6671', $found['value']);
+    });
+    it('reads an IPNI LSID', function () use ($one) {
+        $found = $one('gen. nov. urn:lsid:ipni.org:names:77123456-1');
+        assertEquals('ipni', $found['scheme']);
+        assertEquals('urn:lsid:ipni.org:names:77123456-1', $found['value']);
+    });
+    it('reads a MycoBank number when the registry is named', function () use ($one) {
+        assertEquals('MB812345', $one('sp. nov. MycoBank MB 812345')['value']);
+    });
+    it('leaves a bare MB number alone', function () use ($one) {
+        // as likely a museum accession as a MycoBank number
+        assertEquals(null, $one('a museum lot MB123456 from the collection'));
+    });
+    it('reads through the spaces the scanner puts in', function () use ($one) {
+        $found = $one('urn: lsid:zoobank.org : act : 51C2C9E7-9514-43DF-A09B-3E391D3B61DD');
+        assertEquals('urn:lsid:zoobank.org:act:51C2C9E7-9514-43DF-A09B-3E391D3B61DD', $found['value']);
+    });
+    it('puts a UUID broken over a line back together', function () use ($one) {
+        $found = $one("urn:lsid:zoobank.org:act:2C26E39F-EB96-4864-8F82-\nB7ABCBDD0F1F");
+        assertEquals('urn:lsid:zoobank.org:act:2C26E39F-EB96-4864-8F82-B7ABCBDD0F1F', $found['value']);
+    });
+    it('puts one broken into several pieces back together', function () use ($one) {
+        // exactly as it stands in European Journal of Taxonomy 236
+        $found = $one('urn: lsid:zoobank.org : author: 0C09EE45-6198-482E-85 7A-EF690C2 AO 16F');
+        assertEquals('urn:lsid:zoobank.org:author:0C09EE45-6198-482E-857A-EF690C2A016F',
+            $found['value']);
+    });
+    it('reads l for 1 and O for 0 inside a UUID', function () use ($one) {
+        // hex has no l or O, so this cannot be anything else
+        $found = $one('urn:lsid:zoobank.org:act:DDCAA18B-CC50-4ECl-B63B-28ABAE6904C2');
+        assertEquals('urn:lsid:zoobank.org:act:DDCAA18B-CC50-4EC1-B63B-28ABAE6904C2',
+            $found['value']);
+    });
+    it('stops at the end of the UUID', function () use ($one) {
+        $found = $one('urn:lsid:zoobank.org:act:C7607188-AF52-4258-BF6A-4956282B6671 Figs 2-4');
+        assertEquals('urn:lsid:zoobank.org:act:C7607188-AF52-4258-BF6A-4956282B6671',
+            $found['value']);
+    });
+    it('keeps the text it came from findable', function () use ($one) {
+        $text = 'sp. nov. urn: lsid:zoobank.org : act : 51C2C9E7-9514-43DF-A09B-3E391D3B61DD';
+        $found = $one($text);
+        assertEquals($found['verbatim'], substr($text, $found['start'], $found['end'] - $found['start']));
+    });
+});
+
+describe('identifiers on an annotation', function () {
+    it('gives the identifier to the name it is printed under', function () {
+        $finder = new Finder();
+        $text = "Gulella salpinx sp. nov.\n"
+            . "urn:lsid:zoobank.org:act:C7607188-AF52-4258-BF6A-4956282B6671\n"
+            . "Figs 2-4. Gulella salpinx is known only from the type locality.";
+        $carrying = array();
+        foreach ($finder->find($text) as $annotation) {
+            if (isset($annotation['identifiers'])) {
+                $carrying[] = $annotation['body']['value'];
+            }
+        }
+        // named twice, and only the one the LSID sits under carries it
+        assertEquals(array('Gulella salpinx'), $carrying);
+    });
+    it('does not reach an identifier far from any name', function () {
+        $finder = new Finder();
+        $text = 'Felis leo is a cat. ' . str_repeat('Filler words here. ', 20)
+            . 'urn:lsid:zoobank.org:act:C7607188-AF52-4258-BF6A-4956282B6671';
+        foreach ($finder->find($text) as $annotation) {
+            assertFalse(isset($annotation['identifiers']));
+        }
+    });
+});
+
 describe('SortedIndex', function () {
     it('finds every term it was built from and nothing else', function () {
         $terms = array('zebra', 'aardvark', 'mole', 'mole', 'Newt', ' vole ', '', 'yak');
