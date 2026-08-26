@@ -13,8 +13,8 @@
  *
  * Line endings are normalised to \n - the OCR mixes CRLF and bare CR, and
  * character positions should not depend on which. A word broken over two
- * lines, which BHL marks with a not sign where the hyphen was, is put back
- * together. Nothing else is inserted
+ * lines is put back together, whether BHL marked the break with a not sign or
+ * left an ordinary hyphen. Nothing else is inserted
  * between the pages beyond the blank line that separates them, so the text
  * stays as it was scanned. That leaves the question of which
  * page a name was found on, which --pages answers with a sidecar of
@@ -64,6 +64,14 @@ foreach ($pages as $page) {
     // and with it any name the line break had cut in two. Only where a line
     // actually ends - a Â¬ in the middle of one is left alone.
     $text = preg_replace('/\xc2\xac[ \t]*\n[ \t]*/', '', $text);
+    // And sometimes with an ordinary hyphen: 'Thala- \n\n\n\nmum'. That one is
+    // ambiguous, because a word may be hyphenated in its own right and happen
+    // to break there, and joining turns 'yellow-green' into 'yellowgreen'.
+    // Joined anyway: over the five items here, 239 breaks are real compounds
+    // and not one of them spells a name when run together, so joining cannot
+    // invent one. Leaving them apart can - the halves are what put 'macro',
+    // 'hexa' and 'mon' into a list of epithets.
+    $text = preg_replace('/([a-z])-[ \t]*\n[ \t\n]*(?=[a-z])/', '$1', $text);
     if (!$first) {
         echo "\n";
         $offset += 1;
