@@ -149,7 +149,6 @@ synanamorph
 trib
 tribe
 typum
-typus
 unranked
 var
 variant

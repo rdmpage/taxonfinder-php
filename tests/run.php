@@ -235,7 +235,7 @@ describe('#load', function () use ($dictionaries) {
     it('adds a lot of words', function () use ($dictionaries) {
         $expected = array(
             'family' => 55230, 'family_new' => 41, 'genera' => 437061, 'genera_new' => 897,
-            'species' => 660011, 'species_new' => 1840, 'species_bad' => 1187, 'ranks' => 158,
+            'species' => 660011, 'species_new' => 1840, 'species_bad' => 1187, 'ranks' => 157,
             'overlap_new' => 3025, 'dict_ambig' => 4166, 'genera_family' => 11, 'dict_bad' => 9,
         );
         foreach ($expected as $name => $minimum) {
