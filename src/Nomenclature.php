@@ -147,6 +147,46 @@ class Nomenclature
     }
 
     /**
+     * Does a nomenclatural act finish just before $offset?
+     *
+     * Asked by Identifiers, so that a bare registry number can be trusted
+     * where it follows one. Mycotaxon prints them that way in the body -
+     * '... sp. nov. FIGS 2-4 MB 833932' - and the prefix alone is no evidence
+     * at all, 'IF' being an English word and 'MB' a museum accession.
+     *
+     * Read off the text rather than off the annotations, because the two do
+     * not agree: a paper erecting new fungi names them with epithets no
+     * dictionary can hold yet, so most of these acts are in the text and not
+     * in our findings.
+     *
+     * @param string $text
+     * @param int    $offset  where the identifier starts
+     * @param int    $within  how far back to look
+     */
+    public static function actEndsBefore($text, $offset, $within = 40)
+    {
+        self::load();
+        $from = max(0, $offset - $within);
+        $window = (string) substr($text, $from, $offset - $from);
+        if (!preg_match_all('/[A-Za-z]+/', $window, $matches)) {
+            return false;
+        }
+        $words = $matches[0];
+        for ($i = 0, $n = count($words) - 1; $i < $n; $i++) {
+            $here = strtolower($words[$i]);
+            $next = $words[$i + 1];
+            // 'sp. nov.' and 'n. sp.' alike
+            if (isset(self::$acts[$here]) && self::isNewMarker($next)) {
+                return true;
+            }
+            if (self::isNewMarker($words[$i]) && isset(self::$acts[strtolower($next)])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Read the shipped vocabulary, and dictionaries/local/annotations.txt if
      * it is there. Called automatically; only needed directly if you want the
      * vocabulary before the first detect().

@@ -1298,6 +1298,34 @@ describe('Identifiers::find', function () {
     });
 });
 
+describe('fungal registry numbers', function () {
+    $one = function ($text) {
+        $found = Taxonfinder\Identifiers::find($text);
+        return $found ? $found[0]['scheme'] . ':' . $found[0]['value'] : null;
+    };
+    it('reads a bracketed number from an index of new taxa', function () use ($one) {
+        assertEquals('indexfungorum:IF557506', $one('Blastophragmia Jian Ma [IF 557506], p. 168'));
+        assertEquals('mycobank:MB834522', $one('Neomassaria K.D. Hyde [MB 834522], p. 191'));
+        assertEquals('fungalnames:FN570000', $one('Xiaoella pentagona Z.J. Xiao [FN 570000], p. 160'));
+    });
+    it('reads a bare number where an act stands in front of it', function () use ($one) {
+        // how Mycotaxon prints it in the body
+        assertEquals('mycobank:MB834819', $one('Helicoma barretoi sp. nov. PLATE 1 MB 834819 Differs'));
+        assertEquals('indexfungorum:IF557315', $one('Jian Ma & X.G. Zhang, gen. nov. IF 557315 Differs'));
+    });
+    it('reads one with the registry spelled out', function () use ($one) {
+        assertEquals('mycobank:MB812345', $one('MycoBank MB 812345'));
+        assertEquals('indexfungorum:IF557506', $one('Index Fungorum IF557506'));
+        assertEquals('fungalnames:FN570000', $one('Fungal Names FN 570000'));
+    });
+    it('will not take a prefix on its own', function () use ($one) {
+        // IF is an English word and MB a museum accession
+        assertEquals(null, $one('we asked IF 123456 people attended'));
+        assertEquals(null, $one('a museum lot MB123456 from the collection'));
+        assertEquals(null, $one('IF 557506 with nothing to say what it is'));
+    });
+});
+
 describe('identifiers on an annotation', function () {
     it('gives the identifier to the name it is printed under', function () {
         $finder = new Finder();

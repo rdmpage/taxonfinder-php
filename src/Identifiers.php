@@ -12,9 +12,9 @@
  * key in a registry, so an annotation carrying one can be checked rather than
  * believed.
  *
- * Three kinds are read. An LSID of any authority, which covers ZooBank for
- * animals and IPNI for plants; a MycoBank number, which fungi use instead;
- * and Index Fungorum, which prints a bare number under its own name.
+ * Two kinds are read. An LSID of any authority, which covers ZooBank for
+ * animals and IPNI for plants; and the prefixed number the three fungal
+ * registries use instead - MycoBank, Index Fungorum and Fungal Names.
  *
  * The OCR fights back. In one paper 'urn:lsid:zoobank.org:act:' appears also
  * as 'urn: lsid:zoobank.org :' and 'urn:lsid:zoobank.org: act:', so space is
@@ -48,7 +48,7 @@ class Identifiers
         foreach (self::lsids($text) as $identifier) {
             $found[] = $identifier;
         }
-        foreach (self::mycobank($text) as $identifier) {
+        foreach (self::fungalRegistries($text) as $identifier) {
             $found[] = $identifier;
         }
         usort($found, function ($a, $b) {
@@ -107,24 +107,52 @@ class Identifiers
         return $found;
     }
 
-    /** 'MycoBank MB 812345', 'MB812345'. */
-    private static function mycobank($text)
+    /**
+     * The three registries a new fungal name may be published in: MycoBank,
+     * Index Fungorum and Fungal Names. All are cited as a prefix and a
+     * number, and Mycotaxon brackets them in its index of new taxa -
+     * 'Blastophragmia Jian Ma, ... & R.F. Castaneda [IF 557506], p. 168'.
+     *
+     * The prefix alone will not do. 'IF' is an English word, 'MB' is a museum
+     * accession as often as a MycoBank number, and 'FN' is anyone's guess. So
+     * a number is only read where the brackets say it is a citation, or the
+     * registry is spelled out beside it.
+     */
+    private static function fungalRegistries($text)
     {
+        $registries = array(
+            'mb' => 'mycobank',
+            'if' => 'indexfungorum',
+            'fn' => 'fungalnames',
+        );
+        $spelled = 'MycoBank|Index[ \t\r\n]*Fungorum|Fungal[ \t\r\n]*Names';
+        $pattern = '/(\[)?[ \t]*(MB|IF|FN)[ \t\r\n#]*([0-9]{5,7})\b[ \t]*(\])?/i';
+
         $found = array();
-        $pattern = '/(?:MycoBank[ \t\r\n]*(?:no\.?)?[ \t\r\n]*)?MB[ \t\r\n#]*([0-9]{5,7})\b/i';
         if (!preg_match_all($pattern, $text, $matches, PREG_OFFSET_CAPTURE | PREG_SET_ORDER)) {
             return $found;
         }
         foreach ($matches as $match) {
-            // A bare 'MB123456' is a museum accession as often as a MycoBank
-            // number; only take it when MycoBank is spelled out beside it.
-            if (stripos($match[0][0], 'mycobank') === false) {
+            $prefix = $match[2][0];
+            $digits = $match[3][0];
+            $key = strtolower($prefix);
+            if (!isset($registries[$key])) {
+                continue;
+            }
+            // The prefix alone means nothing. Something has to say this is a
+            // registry citation: the brackets an index puts round it, the
+            // registry spelled out in front, or the act it belongs to.
+            $bracketed = $match[1][0] === '[' && isset($match[4]) && $match[4][0] === ']';
+            $named = (bool) preg_match('/(?:' . $spelled . ')[ \t\r\n]*(?:no\.?)?[ \t\r\n]*$/i',
+                (string) substr($text, max(0, $match[0][1] - 30), min(30, $match[0][1])));
+            if (!$bracketed && !$named
+                && !Nomenclature::actEndsBefore($text, $match[0][1])) {
                 continue;
             }
             $found[] = array(
-                'scheme' => 'mycobank',
+                'scheme' => $registries[$key],
                 'type' => 'name',
-                'value' => 'MB' . $match[1][0],
+                'value' => strtoupper($prefix) . $digits,
                 'verbatim' => $match[0][0],
                 'start' => $match[0][1],
                 'end' => $match[0][1] + strlen($match[0][0]),
