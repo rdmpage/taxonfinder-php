@@ -85,6 +85,13 @@ act   varieties     var.
 act   family        fam.
 act   genera        gen.
 
+# ---------------------------------------------------------------- joining
+# Words that may stand between two acts, as in 'gen. et sp. nov.'. They only
+# count where an act really does follow, so 'sp. nov. and Felis leo' still
+# ends at the name.
+join  et
+join  and
+
 # ---------------------------------------------------------------- citation
 # Words that may appear in an author citation between a name and its act, as
 # "Brown" and "1980" do in "Alabameubria starki Brown, 1980:188. NEW SYNONYMY".

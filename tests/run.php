@@ -1002,6 +1002,44 @@ describe('#markText and nomenclature', function () use ($finder) {
     });
 });
 
+describe('acts joined into one run', function () {
+    $acts = function ($text, $end) {
+        $found = Taxonfinder\Nomenclature::detect($text, $end);
+        return $found === null ? array() : $found['acts'];
+    };
+    it('reads gen. et sp. nov. as both', function () use ($acts) {
+        assertEquals(array('gen. nov.', 'sp. nov.'),
+            $acts('Ptilototheca soutpansbergensis gen. et sp. nov.', 30));
+    });
+    it('reads "and" and "&" the same way', function () use ($acts) {
+        assertEquals(array('gen. nov.', 'sp. nov.'),
+            $acts('Ptilototheca soutpansbergensis gen. and sp. nov.', 30));
+        assertEquals(array('gen. nov.', 'sp. nov.'),
+            $acts('Ptilototheca soutpansbergensis gen. & sp. nov.', 30));
+    });
+    it('shares a marker written before the run', function () use ($acts) {
+        // 'n. g. et sp.' - the genus and the species are both new
+        assertEquals(array('gen. nov.', 'sp. nov.'),
+            $acts('Hcemocystidium simondi, n. g. et sp.', 22));
+    });
+    it('leaves a run that writes its own markers alone', function () use ($acts) {
+        assertEquals(array('gen. nov.', 'sp. nov.'),
+            $acts('Ptilototheca soutpansbergensis gen. nov., sp. nov.', 30));
+    });
+    it('shares nothing when there is nothing to share', function () use ($acts) {
+        assertEquals(array('sp.'), $acts('Amanita muscaria sp.', 16));
+    });
+    it('will not follow a joining word into the next name', function () use ($acts) {
+        assertEquals(array('sp. nov.'),
+            $acts('Amanita muscaria sp. nov. and Felis leo is a cat', 16));
+    });
+    it('never makes an uncertainty qualifier new', function () use ($acts) {
+        // 'cf. nov.' is not a thing, whether the marker is beside it
+        assertEquals(array('cf.'), $acts('Amanita muscaria cf. nov.', 16));
+        assertEquals(array('aff.'), $acts('Amanita muscaria aff. nov.', 16));
+    });
+});
+
 describe('the annotation vocabulary', function () {
     $acts = function ($text) {
         $end = strpos($text, '|');

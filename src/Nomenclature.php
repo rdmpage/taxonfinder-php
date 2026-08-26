@@ -45,6 +45,16 @@ class Nomenclature
      */
     private static $citationWords = array();
 
+    /** @var array words that may stand between two acts: 'gen. et sp. nov.' */
+    private static $joinWords = array();
+
+    /**
+     * Acts that cannot be new, so a 'nov.' shared across a run never reaches
+     * them. These say how sure the identification is, not what is being
+     * published, and 'cf. nov.' is not a thing.
+     */
+    private static $neverNew = array('cf.' => true, 'aff.' => true, 'ined.' => true);
+
     /**
      * Look for an annotation starting at $offset (the end of a name).
      *
@@ -71,7 +81,8 @@ class Nomenclature
 
             if (isset(self::$acts[$word])) {
                 list($canonical, $mayStandAlone) = self::$acts[$word];
-                if ($next !== null && self::isNewMarker($next['word'])) {
+                if ($next !== null && self::isNewMarker($next['word'])
+                    && !isset(self::$neverNew[$canonical])) {
                     $acts[] = $canonical . ' nov.';
                     $used[] = $i;
                     $used[] = $i + 1;
@@ -98,6 +109,7 @@ class Nomenclature
         if (!$acts) {
             return null;
         }
+        $acts = self::shareNewness($acts);
 
         $first = $tokens[$used[0]];
         $last = $tokens[$used[count($used) - 1]];
@@ -171,7 +183,7 @@ class Nomenclature
      *   Nomenclature::add('new', 'novissima');
      *   Nomenclature::add('cite', 'apud');
      *
-     * @param string      $type      'new', 'act' or 'cite'
+     * @param string      $type      'new', 'act', 'cite' or 'join'
      * @param string      $word
      * @param string|null $canonical how an act is reported; required for acts
      * @param bool        $mayStandAlone may an act appear without a 'new' word
@@ -196,6 +208,9 @@ class Nomenclature
             case 'cite':
                 self::$citationWords[$word] = true;
                 break;
+            case 'join':
+                self::$joinWords[$word] = true;
+                break;
             default:
                 throw new \InvalidArgumentException("Unknown annotation type: $type");
         }
@@ -208,6 +223,7 @@ class Nomenclature
         self::$newMarkers = array();
         self::$acts = array();
         self::$citationWords = array();
+        self::$joinWords = array();
     }
 
     private static function readFile($file)
@@ -285,8 +301,9 @@ class Nomenclature
         $citationWords = 0;
         $citationSurnames = 0;
         $firstAct = null;
-        foreach ($matches[0] as $match) {
-            list($word, $position) = $match;
+        $count = count($matches[0]);
+        for ($index = 0; $index < $count; $index++) {
+            list($word, $position) = $matches[0][$index];
             // Only punctuation and space between the words.
             $gap = substr($window, $cursor, $position - $cursor);
             if (!preg_match('/^[^0-9A-Za-z]*$/D', $gap)) {
@@ -301,6 +318,15 @@ class Nomenclature
                 $cursor = $position + strlen($word);
                 continue;
             }
+            // A word joining two acts - 'gen. et sp. nov.' - and only where
+            // an act really does follow it, so 'sp. nov. and Felis leo' still
+            // ends here.
+            if ($tokens && isset(self::$joinWords[$lower])
+                && self::actFollows($matches[0], $index + 1)) {
+                $cursor = $position + strlen($word);
+                continue;
+            }
+
             // Not vocabulary. Part of a citation before the annotation?
             if ($tokens || !self::isCitationWord($word)) {
                 break;
@@ -334,6 +360,58 @@ class Nomenclature
             }
         }
         return array('tokens' => $tokens, 'skippedCitation' => $citationWords > 0);
+    }
+
+    /**
+     * One "new" word can carry a whole run of acts.
+     *
+     *   Ptilototheca soutpansbergensis gen. et sp. nov.
+     *   Hcemocystidium simondi, n. g. et sp.
+     *
+     * Both announce a genus and a species, and the marker is written once -
+     * before the run in the second, after it in the first. Read literally
+     * only the act beside the marker is new and the other comes back bare,
+     * which says the genus was merely mentioned when the paper is erecting
+     * it.
+     *
+     * Only where the run holds exactly one marker. 'gen. nov., sp. nov.'
+     * writes its own and is left alone, and a lone bare act - 'Amanita sp.' -
+     * has no marker to share.
+     *
+     * @param string[] $acts
+     * @return string[]
+     */
+    private static function shareNewness(array $acts)
+    {
+        if (count($acts) < 2) {
+            return $acts;
+        }
+        $new = 0;
+        foreach ($acts as $act) {
+            if (substr($act, -4) === 'nov.') {
+                $new++;
+            }
+        }
+        if ($new !== 1) {
+            return $acts;
+        }
+        foreach ($acts as $index => $act) {
+            if (substr($act, -4) === 'nov.' || isset(self::$neverNew[$act])) {
+                continue;
+            }
+            $acts[$index] = $act . ' nov.';
+        }
+        return $acts;
+    }
+
+    /** Is the next word an act, or the marker that makes one? */
+    private static function actFollows(array $matches, $index)
+    {
+        if (!isset($matches[$index])) {
+            return false;
+        }
+        $word = $matches[$index][0];
+        return isset(self::$acts[strtolower($word)]) || self::isNewMarker($word);
     }
 
     /** A surname, a number, or one of the words that join them. */
