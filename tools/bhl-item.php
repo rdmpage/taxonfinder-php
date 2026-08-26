@@ -12,7 +12,9 @@
  * in reading order, so they are sorted on the sequence number here.
  *
  * Line endings are normalised to \n - the OCR mixes CRLF and bare CR, and
- * character positions should not depend on which. Nothing else is inserted
+ * character positions should not depend on which. A word broken over two
+ * lines, which BHL marks with a not sign where the hyphen was, is put back
+ * together. Nothing else is inserted
  * between the pages beyond the blank line that separates them, so the text
  * stays as it was scanned. That leaves the question of which
  * page a name was found on, which --pages answers with a sidecar of
@@ -57,6 +59,11 @@ foreach ($pages as $page) {
     // anything measures the text, so an offset means the same thing wherever
     // the file came from and whatever reads it next.
     $text = preg_replace('/\r\n|\r/', "\n", $text);
+    // BHL writes a word broken across two lines with a not sign where the
+    // hyphen was: 'DoÂ¬ \nliocarpus'. Joining the halves puts the word back,
+    // and with it any name the line break had cut in two. Only where a line
+    // actually ends - a Â¬ in the middle of one is left alone.
+    $text = preg_replace('/\xc2\xac[ \t]*\n[ \t]*/', '', $text);
     if (!$first) {
         echo "\n";
         $offset += 1;

@@ -34,7 +34,27 @@
  * here once we have settled which BHL URL serves the text these offsets index.
  */
 
+// A book-length text needs more than PHP's default 128 MB: the parser holds
+// a token per word, and they cost far more than the bytes they came from.
+if (memoryLimitBytes() < 1024 * 1024 * 1024) {
+    ini_set('memory_limit', '1G');
+}
+
 require __DIR__ . '/../autoload.php';
+
+/** The current memory_limit in bytes; PHP_INT_MAX when there is none. */
+function memoryLimitBytes()
+{
+    $limit = trim((string) ini_get('memory_limit'));
+    if ($limit === '' || $limit === '-1') {
+        return PHP_INT_MAX;
+    }
+    $units = array('k' => 1024, 'm' => 1048576, 'g' => 1073741824);
+    $suffix = strtolower(substr($limit, -1));
+    return isset($units[$suffix])
+        ? (int) substr($limit, 0, -1) * $units[$suffix]
+        : (int) $limit;
+}
 
 $file = null;
 $pagesFile = null;
