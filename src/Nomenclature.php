@@ -112,8 +112,18 @@ class Nomenclature
         // line, as 'Alabameubria starki Brown, 1980:188. NEW SYNONYMY' does.
         // Without that, the 'New species' opening a following sentence would
         // attach itself to whatever name the previous one ended with.
-        if ($scan['skippedCitation'] && !self::endsTheLine($text, $end)) {
-            return null;
+        if ($scan['skippedCitation']) {
+            // Reached across a citation, it has to be announcing something.
+            // A bare qualifier belongs against its name - 'Amanita sp.' - and
+            // one found beyond an author citation is almost always a title
+            // being read as an act: 'Fabr. Sp. Ins., 1781' is Species
+            // Insectorum, 'Steudel, Nom. Bot.' the Nomenclator.
+            if (!self::announcesSomethingNew($acts)) {
+                return null;
+            }
+            if (!self::endsTheLine($text, $end) && !self::opensAStatement($text, $end)) {
+                return null;
+            }
         }
 
         return array(
@@ -310,11 +320,16 @@ class Nomenclature
             if ($citationSurnames === 0) {
                 return $empty;
             }
-            // And it sits on the same line as the name. Without this, the
-            // '201' and 'Onconotellus' of a page break and the heading after
-            // it read as a citation, and the heading's 'gen. n.' is taken by
-            // the last name on the previous page.
-            if (strpos(substr($window, 0, $firstAct), "\n") !== false) {
+            // And nothing but a line wrap separates it from the act. A
+            // citation regularly runs on to the next line -
+            // 'Cladocolea alternifolia (Eichler) Kuijt,' then 'comb. nov.' -
+            // so a single break has to be allowed or most combinations in a
+            // botanical journal are lost. A blank line is different: it is
+            // where a paragraph or a page ends, and without stopping there
+            // the '201' of a page number and the heading after it read as a
+            // citation, and that heading's 'gen. n.' is taken by the last
+            // name on the page before.
+            if (preg_match('/\n[^\S\n]*\n/', substr($window, 0, $firstAct))) {
                 return $empty;
             }
         }
@@ -331,6 +346,35 @@ class Nomenclature
             return true;
         }
         return isset(self::$citationWords[strtolower($word)]);
+    }
+
+    /** Did any of these acts come with a word meaning "new"? */
+    private static function announcesSomethingNew(array $acts)
+    {
+        foreach ($acts as $act) {
+            if (substr($act, -4) === 'nov.') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Does a new statement start where the annotation left off?
+     *
+     * A combination in a botanical journal is followed by its basionym on the
+     * same line - 'Cladocolea alternifolia (Eichler) Kuijt, comb. nov.
+     * Basionym: ...' - so finishing the line cannot be the only way an
+     * annotation reached across a citation is allowed to stand. What the
+     * guard is really for is an act swallowed out of the sentence following a
+     * name, and there the act runs on in lower case: '... Onconotellus. New
+     * species of the genus are described' continues with 'of'. A capital
+     * starts something new, and the act belongs to what came before it.
+     */
+    private static function opensAStatement($text, $end)
+    {
+        $rest = (string) substr($text, $end, 40);
+        return (bool) preg_match('/^[^0-9A-Za-z]*[A-Z]/', $rest);
     }
 
     /** Is there nothing but punctuation between $end and the end of its line? */

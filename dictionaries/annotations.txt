@@ -39,7 +39,11 @@ act   genus       gen.
 act   comb        comb.      bare
 act   syn         syn.       bare
 act   stat        stat.      bare
-act   nom         nom.       bare
+# Not standing alone: 'Nom.' abbreviates Nomenclator in botanical citations -
+# 'Bauhinia cheilantha (Bongard) Steudel, Nom. Bot.' - and a bare nom.
+# announces nothing anyway. The real ones (nom. nud., nom. illeg., nom. cons.)
+# are not acts either, and nom. nov. goes by the "new" word.
+act   nom         nom.
 act   subsp       subsp.     bare
 act   ssp         subsp.     bare
 act   var         var.       bare
