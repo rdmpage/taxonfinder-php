@@ -49,6 +49,12 @@ class Nomenclature
     private static $joinWords = array();
 
     /**
+     * @var array open nomenclature qualifiers - 'cf.', 'indet.', 'stet.' -
+     * which say how sure an identification is, not that anything is new
+     */
+    private static $qualifiers = array();
+
+    /**
      * Acts that cannot be new, so a 'nov.' shared across a run never reaches
      * them. These say how sure the identification is, not what is being
      * published, and 'cf. nov.' is not a thing.
@@ -73,6 +79,7 @@ class Nomenclature
         }
 
         $acts = array();
+        $qualifiers = array();
         $used = array();
         $count = count($tokens);
         for ($i = 0; $i < $count; $i++) {
@@ -94,6 +101,12 @@ class Nomenclature
                 continue;
             }
 
+            if (isset(self::$qualifiers[$word])) {
+                $qualifiers[] = self::$qualifiers[$word];
+                $used[] = $i;
+                continue;
+            }
+
             // 'n. sp.' as well as 'sp. n.'
             if (self::isNewMarker($tokens[$i]['word']) && $next !== null) {
                 $nextWord = strtolower($next['word']);
@@ -106,10 +119,26 @@ class Nomenclature
             }
         }
 
-        if (!$acts) {
+        if (!$acts && !$qualifiers) {
             return null;
         }
+        // Sharing first: in 'gen. et sp. nov.' the 'gen.' stands alone until
+        // the marker at the end of the run reaches it.
         $acts = self::shareNewness($acts);
+
+        // Then the split the paper draws. A binomen with 'sp. nov.' after it
+        // is a nomenclatural act; the same words with nothing announcing
+        // anything new are an open nomenclature qualifier - 'Nucula sp.' says
+        // the species was not identified, and claims nothing.
+        $announced = array();
+        foreach ($acts as $act) {
+            if (substr($act, -4) === 'nov.') {
+                $announced[] = $act;
+            } else {
+                $qualifiers[] = $act;
+            }
+        }
+        $acts = $announced;
 
         $first = $tokens[$used[0]];
         $last = $tokens[$used[count($used) - 1]];
@@ -124,6 +153,11 @@ class Nomenclature
         // line, as 'Alabameubria starki Brown, 1980:188. NEW SYNONYMY' does.
         // Without that, the 'New species' opening a following sentence would
         // attach itself to whatever name the previous one ended with.
+        // A qualifier belongs against its name. Reached across an author
+        // citation it is a word in a title, not a statement about a specimen.
+        if ($scan['skippedCitation']) {
+            $qualifiers = array();
+        }
         if ($scan['skippedCitation']) {
             // Reached across a citation, it has to be announcing something.
             // A bare qualifier belongs against its name - 'Amanita sp.' - and
@@ -141,6 +175,7 @@ class Nomenclature
         return array(
             'verbatim' => substr($text, $start, $end - $start),
             'acts' => $acts,
+            'qualifiers' => $qualifiers,
             'start' => $start,
             'end' => $end,
         );
@@ -223,7 +258,7 @@ class Nomenclature
      *   Nomenclature::add('new', 'novissima');
      *   Nomenclature::add('cite', 'apud');
      *
-     * @param string      $type      'new', 'act', 'cite' or 'join'
+     * @param string      $type      'new', 'act', 'cite', 'join' or 'qualifier'
      * @param string      $word
      * @param string|null $canonical how an act is reported; required for acts
      * @param bool        $mayStandAlone may an act appear without a 'new' word
@@ -251,6 +286,12 @@ class Nomenclature
             case 'join':
                 self::$joinWords[$word] = true;
                 break;
+            case 'qualifier':
+                if ($canonical === null) {
+                    throw new \InvalidArgumentException("A qualifier needs a canonical form: $word");
+                }
+                self::$qualifiers[$word] = $canonical;
+                break;
             default:
                 throw new \InvalidArgumentException("Unknown annotation type: $type");
         }
@@ -264,6 +305,7 @@ class Nomenclature
         self::$acts = array();
         self::$citationWords = array();
         self::$joinWords = array();
+        self::$qualifiers = array();
     }
 
     private static function readFile($file)
@@ -294,6 +336,13 @@ class Nomenclature
                 }
                 $bare = isset($columns[3]) && strtolower($columns[3]) === 'bare';
                 self::add('act', $columns[1], $columns[2], $bare);
+            } elseif ($type === 'qualifier') {
+                if (!isset($columns[2])) {
+                    throw new \RuntimeException(sprintf(
+                        '%s line %d: qualifier "%s" needs a canonical form',
+                        $file, $number + 1, $columns[1]));
+                }
+                self::add('qualifier', $columns[1], $columns[2]);
             } else {
                 self::add($type, $columns[1]);
             }
@@ -351,6 +400,7 @@ class Nomenclature
             }
             $lower = strtolower($word);
             if ((isset(self::$acts[$lower]) && self::actNotAnInitial($matches[0], $index))
+                || isset(self::$qualifiers[$lower])
                 || self::isNewMarker($word)) {
                 if ($firstAct === null) {
                     $firstAct = $position;
@@ -479,7 +529,9 @@ class Nomenclature
             return false;
         }
         $word = $matches[$index][0];
-        return isset(self::$acts[strtolower($word)]) || self::isNewMarker($word);
+        return isset(self::$acts[strtolower($word)])
+            || isset(self::$qualifiers[strtolower($word)])
+            || self::isNewMarker($word);
     }
 
     /** A surname, a number, or one of the words that join them. */

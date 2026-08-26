@@ -199,10 +199,11 @@ function identifierFor(array $annotation)
  * genus and species published together carry 'gen. nov.' and 'sp. nov.' and
  * get a row each.
  *
- * Only acts, by default. Nomenclature reports an act read next to a "new"
- * word as 'sp. nov.' and one that stood on its own as 'sp.', and the second
- * announces nothing - 'Cicindela, sp.' says the species was not identified.
- * --qualifiers puts those in as well.
+ * Only acts, by default. Nomenclature keeps the two apart now: what was read
+ * beside a "new" word is an act and goes in .acts, and what stood on its own
+ * is an open nomenclature qualifier and goes in .qualifiers - 'Cicindela, sp.'
+ * says the species was not identified and announces nothing. --qualifiers
+ * puts the second kind in as well.
  */
 function writeActs($path, array $annotations, $qualifiers)
 {
@@ -217,10 +218,11 @@ function writeActs($path, array $annotations, $qualifiers)
         if (!isset($annotation['nomenclature'])) {
             continue;
         }
-        foreach ($annotation['nomenclature']['acts'] as $act) {
-            if (!$qualifiers && substr($act, -4) !== 'nov.') {
-                continue;
-            }
+        $terms = $annotation['nomenclature']['acts'];
+        if ($qualifiers && isset($annotation['nomenclature']['qualifiers'])) {
+            $terms = array_merge($terms, $annotation['nomenclature']['qualifiers']);
+        }
+        foreach ($terms as $act) {
             fwrite($handle, implode("\t", array(
                 $annotation['target']['source'],
                 $annotation['body']['value'],

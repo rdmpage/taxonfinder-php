@@ -115,21 +115,16 @@ class Marker
     /**
      * Is this a nomenclatural act, rather than an open nomenclature qualifier?
      *
-     * Nomenclature reports an act it read next to a "new" word as 'sp. nov.'
-     * and one that stood on its own as 'sp.', so the two are already told
-     * apart by the canonical form. Only the first is an act: 'Cicindela, sp.'
+     * Nomenclature keeps the two apart: .acts holds what was read beside a
+     * "new" word, .qualifiers what stood on its own. Only the first is an
+     * act: 'Cicindela, sp.'
      * says the species was not identified, and 'Genus Tettix, Charp.' gives
      * the rank of a name in a list. Neither announces anything, and marking
      * them alongside 'gen. nov.' claims more than the text says.
      */
     private static function announcesSomethingNew(array $nomenclature)
     {
-        foreach ($nomenclature['acts'] as $act) {
-            if (substr($act, -4) === 'nov.') {
-                return true;
-            }
-        }
-        return false;
+        return !empty($nomenclature['acts']);
     }
 
     /** A run of source text as it should appear in the output. */

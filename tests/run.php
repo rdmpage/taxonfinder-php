@@ -860,6 +860,13 @@ describe('Nomenclature::detect', function () {
         $found = Taxonfinder\Nomenclature::detect($text, $end);
         return $found === null ? null : $found['acts'];
     };
+    /** The open nomenclature qualifiers following $name, if any. */
+    $quals = function ($text) {
+        $end = strpos($text, '|');
+        $text = str_replace('|', '', $text);
+        $found = Taxonfinder\Nomenclature::detect($text, $end);
+        return $found === null ? null : $found['qualifiers'];
+    };
     it('reads the common new-name annotations', function () use ($acts) {
         assertEquals(array('sp. nov.'), $acts('Lygus buxtoni|, sp. n. Fig. 3'));
         assertEquals(array('sp. nov.'), $acts('Lygus buxtoni|, sp. nov.'));
@@ -875,14 +882,19 @@ describe('Nomenclature::detect', function () {
         assertEquals(array('gen. nov.', 'sp. nov.'),
             $acts('Pseudoneoborus samoanus|, gen. n., sp. n. x'));
     });
-    it('distinguishes an indeterminate name from a new one', function () use ($acts) {
-        assertEquals(array('sp.'), $acts('Amanita| sp.'));
+    it('distinguishes an indeterminate name from a new one', function () use ($acts, $quals) {
+        // 'Amanita sp.' announces nothing: an open nomenclature qualifier,
+        // not an act. See Sigovini et al. 2016.
+        assertEquals(array(), $acts('Amanita| sp.'));
+        assertEquals(array('sp.'), $quals('Amanita| sp.'));
         assertEquals(array('sp. nov.'), $acts('Amanita muscaria| sp. nov.'));
+        assertEquals(array(), $quals('Amanita muscaria| sp. nov.'));
     });
-    it('reports what survived OCR, without inventing the rest', function () use ($acts) {
-        // 'gen. n., sp. n.' misread. The markers are gone, so these are
-        // reported bare rather than as new-name acts.
-        assertEquals(array('gen.', 'sp.'), $acts('Pseudoneoborus samoanus|, gen. ., sp. 0. x'));
+    it('reports what survived OCR, without inventing the rest', function () use ($acts, $quals) {
+        // 'gen. n., sp. n.' misread. The markers are gone, so nothing is
+        // announced and what is left are qualifiers.
+        assertEquals(array(), $acts('Pseudoneoborus samoanus|, gen. ., sp. 0. x'));
+        assertEquals(array('gen.', 'sp.'), $quals('Pseudoneoborus samoanus|, gen. ., sp. 0. x'));
     });
     it('keeps the verbatim text and its own offsets', function () {
         $text = '15. Pseudoneoborus samoanus, gen. n., sp. n. x';
@@ -948,17 +960,20 @@ describe('Nomenclature::detect', function () {
         assertNull($acts('Felisacus filicicola| (Kirkaldy).'));
         assertNull($acts('Vulpes vulpes| (Linnaeus, 1758)'));
     });
-    it('does not read an author initial as a new-name marker', function () use ($acts) {
+    it('does not read an author initial as a new-name marker', function () use ($acts, $quals) {
         // 'N.' is capitalised, so it is an initial, not 'novum'.
         assertNull($acts('Felis leo| N. Smith'));
-        assertEquals(array('sp.'), $acts('Amanita| sp. N. Smith'));
+        assertEquals(array(), $acts('Amanita| sp. N. Smith'));
+        assertEquals(array('sp.'), $quals('Amanita| sp. N. Smith'));
     });
-    it('stops at anything that is not part of an annotation', function () use ($acts) {
+    it('stops at anything that is not part of an annotation', function () use ($acts, $quals) {
         assertNull($acts('Felis leo| and then sp. nov.'));
         assertNull($acts('Felis leo| 1923 sp. nov.'));
         assertEquals(array('sp. nov.'), $acts('Felis leo| sp. n. and then some words'));
-        // A digit between the words ends the run, so only 'var' is read
-        assertEquals(array('var.'), $acts('Felis leo| var 3 nov.'));
+        // A digit between the words ends the run, so only 'var' is read, and
+        // with nothing announcing anything it is a qualifier
+        assertEquals(array(), $acts('Felis leo| var 3 nov.'));
+        assertEquals(array('var.'), $quals('Felis leo| var 3 nov.'));
     });
 });
 
@@ -977,8 +992,10 @@ describe('acts against qualifiers', function () {
         assertEquals(null, Taxonfinder\Nomenclature::detect('Cladonotus Species.', 10));
     });
     it('still reads the abbreviations as indeterminate', function () {
-        assertEquals(array('sp.'), Taxonfinder\Nomenclature::detect('Amanita sp.', 7)['acts']);
-        assertEquals(array('gen.'), Taxonfinder\Nomenclature::detect('Amanita gen.', 7)['acts']);
+        // reported, but as qualifiers - they announce nothing
+        assertEquals(array('sp.'), Taxonfinder\Nomenclature::detect('Amanita sp.', 7)['qualifiers']);
+        assertEquals(array(), Taxonfinder\Nomenclature::detect('Amanita sp.', 7)['acts']);
+        assertEquals(array('gen.'), Taxonfinder\Nomenclature::detect('Amanita gen.', 7)['qualifiers']);
     });
     it('still reads them as acts next to a new word', function () {
         assertEquals(array('gen. nov.'), Taxonfinder\Nomenclature::detect('Tettix genus nov.', 6)['acts']);
@@ -998,7 +1015,8 @@ describe('#markText and nomenclature', function () use ($finder) {
     });
     it('reports the qualifier all the same', function () use ($finder) {
         $annotations = $finder->find('Synopsis of the Cicindela, sp.');
-        assertEquals(array('sp.'), $annotations[0]['nomenclature']['acts']);
+        assertEquals(array(), $annotations[0]['nomenclature']['acts']);
+        assertEquals(array('sp.'), $annotations[0]['nomenclature']['qualifiers']);
     });
 });
 
@@ -1067,6 +1085,41 @@ describe('a one letter act against an initial', function () {
     });
 });
 
+describe('open nomenclature qualifiers', function () {
+    $of = function ($text, $end) {
+        $found = Taxonfinder\Nomenclature::detect($text, $end);
+        return $found === null ? null : $found['qualifiers'];
+    };
+    it('reads the qualifiers of Sigovini et al. 2016', function () use ($of) {
+        assertEquals(array('indet.'), $of('Lekanesphaera indet.', 13));
+        assertEquals(array('stet.'), $of('Teredinidae stet.', 11));
+        assertEquals(array('spp.'), $of('Unio spp.', 4));
+        assertEquals(array('prox.'), $of('Pourtalesia prox. alcocki', 11));
+        assertEquals(array('nr.'), $of('Pourtalesia nr. alcocki', 11));
+        assertEquals(array('gr.'), $of('Pseudocandona gr. eremita', 13));
+        assertEquals(array('complex'), $of('Capitella capitata complex', 18));
+    });
+    it('folds the spellings of confer together', function () use ($of) {
+        assertEquals(array('cf.'), $of('Polycera cf. hedgpethi', 8));
+        assertEquals(array('cf.'), $of('Polycera cfr. hedgpethi', 8));
+        assertEquals(array('cf.'), $of('Polycera conf. hedgpethi', 8));
+    });
+    it('keeps an act out of the qualifiers', function () use ($of) {
+        assertEquals(array(), $of('Amanita muscaria sp. nov.', 16));
+    });
+    it('never lets a qualifier take a new word', function () {
+        // there is no such thing as 'indet. nov.'
+        $found = Taxonfinder\Nomenclature::detect('Amanita indet. nov.', 7);
+        assertEquals(array(), $found['acts']);
+        assertEquals(array('indet.'), $found['qualifiers']);
+    });
+    it('will not reach a qualifier across an author citation', function () {
+        // beyond a citation it is a word in a title, not a statement about a
+        // specimen; an act may still be reached there, a qualifier may not
+        assertEquals(null, Taxonfinder\Nomenclature::detect('Boscia Hadj Moust. indet.', 6));
+    });
+});
+
 describe('acts joined into one run', function () {
     $acts = function ($text, $end) {
         $found = Taxonfinder\Nomenclature::detect($text, $end);
@@ -1092,7 +1145,9 @@ describe('acts joined into one run', function () {
             $acts('Ptilototheca soutpansbergensis gen. nov., sp. nov.', 30));
     });
     it('shares nothing when there is nothing to share', function () use ($acts) {
-        assertEquals(array('sp.'), $acts('Amanita muscaria sp.', 16));
+        assertEquals(array(), $acts('Amanita muscaria sp.', 16));
+        assertEquals(array('sp.'),
+            Taxonfinder\Nomenclature::detect('Amanita muscaria sp.', 16)['qualifiers']);
     });
     it('will not follow a joining word into the next name', function () use ($acts) {
         assertEquals(array('sp. nov.'),
@@ -1100,8 +1155,11 @@ describe('acts joined into one run', function () {
     });
     it('never makes an uncertainty qualifier new', function () use ($acts) {
         // 'cf. nov.' is not a thing, whether the marker is beside it
-        assertEquals(array('cf.'), $acts('Amanita muscaria cf. nov.', 16));
-        assertEquals(array('aff.'), $acts('Amanita muscaria aff. nov.', 16));
+        assertEquals(array(), $acts('Amanita muscaria cf. nov.', 16));
+        assertEquals(array('cf.'),
+            Taxonfinder\Nomenclature::detect('Amanita muscaria cf. nov.', 16)['qualifiers']);
+        assertEquals(array('aff.'),
+            Taxonfinder\Nomenclature::detect('Amanita muscaria aff. nov.', 16)['qualifiers']);
     });
 });
 
@@ -1124,7 +1182,10 @@ describe('the annotation vocabulary', function () {
     it('takes additions at runtime', function () use ($acts) {
         assertNull($acts('Felis leo| nudum'));
         Taxonfinder\Nomenclature::add('act', 'nudum', 'nom. nud.', true);
-        assertEquals(array('nom. nud.'), $acts('Felis leo| nudum'));
+        // standing alone, so it reports as a qualifier
+        assertEquals(array(), $acts('Felis leo| nudum'));
+        assertEquals(array('nom. nud.'),
+            Taxonfinder\Nomenclature::detect('Felis leo nudum', 9)['qualifiers']);
         Taxonfinder\Nomenclature::reset();
         assertNull($acts('Felis leo| nudum'));
     });
@@ -1133,7 +1194,10 @@ describe('the annotation vocabulary', function () {
         file_put_contents($file, "# a comment\n\nact  zzztest  test.  bare\nnew  novissima\n");
         Taxonfinder\Nomenclature::reset();
         Taxonfinder\Nomenclature::addFile($file);
-        assertEquals(array('test.'), $acts('Felis leo| zzztest'));
+        // bare, so a qualifier; beside the new word, an act
+        assertEquals(array(), $acts('Felis leo| zzztest'));
+        assertEquals(array('test.'),
+            Taxonfinder\Nomenclature::detect('Felis leo zzztest', 9)['qualifiers']);
         assertEquals(array('test. nov.'), $acts('Felis leo| zzztest novissima'));
         // the shipped vocabulary is still there
         assertEquals(array('sp. nov.'), $acts('Felis leo| sp. nov.'));

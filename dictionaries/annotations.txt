@@ -56,8 +56,6 @@ act   forma       forma      bare
 # 'the form of the pronotum' - so unlike forma it does not stand on its own
 # and only counts next to a "new" word, the way 'f' does.
 act   form        forma
-act   cf          cf.        bare
-act   aff         aff.       bare
 act   ined        ined.      bare
 act   emend       emend.     bare
 
@@ -84,6 +82,37 @@ act   variety       var.
 act   varieties     var.
 act   family        fam.
 act   genera        gen.
+
+# ---------------------------------------------------------------- qualifiers
+# Open nomenclature: how sure the identification is, not that anything is new.
+# Sigovini, Keppel & Tagliapietra 2016, Open Nomenclature in the biodiversity
+# era, Methods Ecol Evol 7:1217-1225, and its Appendix S1.
+#
+#   qualifier  <word>  <canonical>
+#
+# These never take a "new" word. A qualifier is reported under nomenclature
+# .qualifiers, apart from .acts, because the two say different things: an act
+# publishes a name, a qualifier declines to.
+
+qualifier  cf           cf.
+qualifier  cfr          cf.
+qualifier  conf         cf.
+qualifier  aff          aff.
+qualifier  prox         prox.
+qualifier  nr           nr.
+qualifier  gr           gr.
+qualifier  indet        indet.
+qualifier  ind          indet.
+qualifier  stet         stet.
+qualifier  inc          inc.
+qualifier  inq          inq.
+qualifier  dub          dub.
+qualifier  spp          spp.
+qualifier  complex      complex
+qualifier  sec          sec.
+qualifier  frag         frag.
+qualifier  morph        morph
+qualifier  ab           ab.
 
 # ---------------------------------------------------------------- joining
 # Words that may stand between two acts, as in 'gen. et sp. nov.'. They only
