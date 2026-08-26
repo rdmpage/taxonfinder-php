@@ -43,6 +43,11 @@ act   fam         fam.       bare
 act   subgen      subgen.    bare
 act   subfam      subfam.    bare
 act   forma       forma      bare
+
+# 'form.' is the abbreviation of forma, but 'form' is also an everyday word -
+# 'the form of the pronotum' - so unlike forma it does not stand on its own
+# and only counts next to a "new" word, the way 'f' does.
+act   form        forma
 act   cf          cf.        bare
 act   aff         aff.       bare
 act   ined        ined.      bare
