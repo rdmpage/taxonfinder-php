@@ -56,6 +56,7 @@ class KeyGenus
         $window = array();
         $run = array();
         $previous = null;
+        $before = null;
 
         foreach ($words as $entry) {
             $clean = Utility::clean($entry['word']);
@@ -76,6 +77,9 @@ class KeyGenus
             // An epithet is lowercase and in the species dictionary. Consecutive
             // ones run together, so 'atypicalis ceylonus' is read as one.
             if (self::isEpithet($clean, $lower, $dictionaries)) {
+                if (!$run) {
+                    $before = $previous;
+                }
                 $run[] = $entry;
             } else {
                 $run = array();
@@ -87,6 +91,16 @@ class KeyGenus
                 continue;
             }
 
+            // A capitalised word in front means the text is naming its own
+            // genus, even where we cannot read it: 'Hcemocystidium simondi,
+            // n. g. et sp.' is Haemocystidium, mangled, and handing simondi
+            // to whatever genus the section heading gave would invent a name.
+            // A key entry has a description, a number or a plate reference in
+            // front of the epithet, never a capital.
+            if ($before !== null && preg_match('/^[A-Z]/', Utility::clean($before['word']))) {
+                $run = array();
+                continue;
+            }
             $last = $run[count($run) - 1];
             $end = $last['offset'] + strlen($last['word']);
             if (!self::newnessFollows($text, $end)) {

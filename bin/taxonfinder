@@ -11,7 +11,8 @@
 
 require __DIR__ . '/../autoload.php';
 
-$options = array('html' => false, 'format' => 'json', 'pretty' => true, 'context' => 32);
+$options = array('html' => false, 'format' => 'json', 'pretty' => true, 'context' => 32,
+                 'carryOver' => false);
 $files = array();
 
 foreach (array_slice($argv, 1) as $argument) {
@@ -25,6 +26,7 @@ foreach (array_slice($argv, 1) as $argument) {
         case '--names': $options['format'] = 'names'; break;
         case '--tag': $options['format'] = 'tag'; break;
         case '--mark': $options['format'] = 'mark'; break;
+        case '--carry-over': $options['carryOver'] = true; break;
         case '-h':
         case '--help':
             usage(0);
@@ -43,6 +45,7 @@ if (!$files) {
 }
 
 $finder = new Taxonfinder\Finder(null, $options['context']);
+$finder->setCarryOverKeyGenus($options['carryOver']);
 
 foreach ($files as $file) {
     $text = file_get_contents($file === '-' ? 'php://stdin' : $file);
@@ -104,6 +107,7 @@ nov.') under nomenclature.
   --names        print just the unique names, one per line
   --tag          print the input with every name wrapped in a <name> element
   --mark         print the input as HTML with every name wrapped in <mark>
+  --carry-over   read a key's bare epithets under the genus of its heading
   --help         show this message
 
 TEXT

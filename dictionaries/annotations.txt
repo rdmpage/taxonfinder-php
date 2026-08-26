@@ -27,11 +27,15 @@ new   new
 # ---------------------------------------------------------------- acts
 # Abbreviated. These stand on their own: "Amanita sp." is an indeterminate
 # species, not a new one, and is worth reporting as such.
+#
+# The words spelled out do not. "Genus Tettix, Charp." gives the rank of a
+# name in a list and "Key to Cladonotus Species." heads a key; neither is an
+# act, and both read as one while these stood alone.
 act   sp          sp.        bare
 act   spec        sp.        bare
-act   species     sp.        bare
+act   species     sp.
 act   gen         gen.       bare
-act   genus       gen.       bare
+act   genus       gen.
 act   comb        comb.      bare
 act   syn         syn.       bare
 act   stat        stat.      bare
@@ -53,9 +57,11 @@ act   aff         aff.       bare
 act   ined        ined.      bare
 act   emend       emend.     bare
 
-# A bare "f." after a name is as likely to be a figure or a female symbol as
-# a forma, so it only counts next to a "new" word.
+# Single letters. A bare "f." after a name is as likely to be a figure or a
+# female symbol as a forma, and a bare "g." is anyone's guess, so these only
+# count next to a "new" word - "GREENIDEA, n. g.", "Hyalopterus, g. n."
 act   f           f.
+act   g           gen.
 
 # Spelled out, as in "Merragata quieta Drake, new species" and
 # "M. hebroides B.-White (new synonymy)". These are ordinary English words, so

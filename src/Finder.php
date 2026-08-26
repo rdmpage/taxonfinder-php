@@ -46,7 +46,7 @@ class Finder
         $this->parser = new Parser($dictionaries);
         $this->annotator = new Annotator($this->parser, $contextLength);
         $this->nameTag = new NameTag($this->parser);
-        $this->marker = new Marker($this->parser);
+        $this->marker = new Marker($this->annotator);
     }
 
     /**

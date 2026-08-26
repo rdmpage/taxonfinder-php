@@ -791,6 +791,7 @@ describe('#markText', function () use ($finder) {
     it('wraps found names in <mark>, inside a plain <html> element', function () use ($finder) {
         assertEquals(
             "<html>\n<meta charset=\"utf-8\">\n"
+            . "<style>mark.nomenclature { background: pink }</style>\n"
             . "Wow, <mark>Felis leo</mark> rocks\n</html>\n",
             $finder->markText('Wow, Felis leo rocks')
         );
@@ -798,6 +799,7 @@ describe('#markText', function () use ($finder) {
     it('ends each line with <br>', function () use ($finder) {
         assertEquals(
             "<html>\n<meta charset=\"utf-8\">\n"
+            . "<style>mark.nomenclature { background: pink }</style>\n"
             . "<mark>Felis leo</mark><br>\n<mark>Amanita muscaria</mark>\n</html>\n",
             $finder->markText("Felis leo\nAmanita muscaria")
         );
@@ -805,6 +807,7 @@ describe('#markText', function () use ($finder) {
     it('reads a carriage return as the end of a line too', function () use ($finder) {
         assertEquals(
             "<html>\n<meta charset=\"utf-8\">\n"
+            . "<style>mark.nomenclature { background: pink }</style>\n"
             . "a<br>\nb<br>\nc\n</html>\n",
             $finder->markText("a\r\nb\rc")
         );
@@ -812,15 +815,34 @@ describe('#markText', function () use ($finder) {
     it('escapes markup in the source text', function () use ($finder) {
         assertEquals(
             "<html>\n<meta charset=\"utf-8\">\n"
+            . "<style>mark.nomenclature { background: pink }</style>\n"
             . "&lt;b&gt; &amp; <mark>Felis leo</mark>\n</html>\n",
             $finder->markText('<b> & Felis leo')
         );
     });
     it('leaves text without names alone', function () use ($finder) {
         assertEquals(
-            "<html>\n<meta charset=\"utf-8\">\nnothing here\n</html>\n",
+            "<html>\n<meta charset=\"utf-8\">\n"
+            . "<style>mark.nomenclature { background: pink }</style>\n"
+            . "nothing here\n</html>\n",
             $finder->markText('nothing here')
         );
+    });
+    it('marks the nomenclatural annotation after a name', function () use ($finder) {
+        assertEquals(
+            "<html>\n<meta charset=\"utf-8\">\n"
+            . "<style>mark.nomenclature { background: pink }</style>\n"
+            . "<mark>Deltonotus</mark> <mark class=\"nomenclature\">gen. nov.</mark>\n</html>\n",
+            $finder->markText('Deltonotus gen. nov.')
+        );
+    });
+    it('marks the act where it stands, inserting nothing', function () use ($finder) {
+        // the comma between the two is the source's own
+        assertTrue(strpos($finder->markText('Lygus buxtoni, sp. n.'),
+            '<mark>Lygus buxtoni</mark>, <mark class="nomenclature">sp. n.</mark>') !== false);
+    });
+    it('leaves a name with no annotation in a plain mark', function () use ($finder) {
+        assertTrue(strpos($finder->markText('Wow, Felis leo rocks'), 'nomenclature">') === false);
     });
     it('marks HTML in place, without escaping or a wrapper', function () use ($finder) {
         assertEquals(
@@ -937,6 +959,46 @@ describe('Nomenclature::detect', function () {
         assertEquals(array('sp. nov.'), $acts('Felis leo| sp. n. and then some words'));
         // A digit between the words ends the run, so only 'var' is read
         assertEquals(array('var.'), $acts('Felis leo| var 3 nov.'));
+    });
+});
+
+describe('acts against qualifiers', function () {
+    it('reads n. g. and g. n. as a new genus', function () {
+        assertEquals(array('gen. nov.'), Taxonfinder\Nomenclature::detect('GREENIDEA, n. g.', 9)['acts']);
+        assertEquals(array('gen. nov.'), Taxonfinder\Nomenclature::detect('Hyalopterus, g. n.', 11)['acts']);
+    });
+    it('will not read a bare g. as anything', function () {
+        assertEquals(null, Taxonfinder\Nomenclature::detect('Plate II, g.', 8));
+    });
+    it('does not read spelled out Genus or Species as standing alone', function () {
+        // 'Genus Tettix, Charp.' gives a rank in a list, and
+        // 'Key to Cladonotus Species.' heads a key. Neither is an act.
+        assertEquals(null, Taxonfinder\Nomenclature::detect('Tettix Genus', 6));
+        assertEquals(null, Taxonfinder\Nomenclature::detect('Cladonotus Species.', 10));
+    });
+    it('still reads the abbreviations as indeterminate', function () {
+        assertEquals(array('sp.'), Taxonfinder\Nomenclature::detect('Amanita sp.', 7)['acts']);
+        assertEquals(array('gen.'), Taxonfinder\Nomenclature::detect('Amanita gen.', 7)['acts']);
+    });
+    it('still reads them as acts next to a new word', function () {
+        assertEquals(array('gen. nov.'), Taxonfinder\Nomenclature::detect('Tettix genus nov.', 6)['acts']);
+    });
+});
+
+describe('#markText and nomenclature', function () use ($finder) {
+    it('marks an act in pink', function () use ($finder) {
+        assertTrue(strpos($finder->markText('Deltonotus gen. nov.'),
+            '<mark class="nomenclature">gen. nov.</mark>') !== false);
+    });
+    it('leaves an open nomenclature qualifier unmarked', function () use ($finder) {
+        // 'Cicindela, sp.' says the species was not identified; nothing is
+        // being announced, so it is not an act and is not coloured as one
+        assertTrue(strpos($finder->markText('Synopsis of the Cicindela, sp.'),
+            'nomenclature">') === false);
+    });
+    it('reports the qualifier all the same', function () use ($finder) {
+        $annotations = $finder->find('Synopsis of the Cicindela, sp.');
+        assertEquals(array('sp.'), $annotations[0]['nomenclature']['acts']);
     });
 });
 
@@ -1129,6 +1191,13 @@ describe('#setCarryOverKeyGenus', function () {
         // quietly used in its place. Loxilobus itself is still a name.
         assertEquals(array('Loxilobus'),
             $names("Genus Loxilobus.\nGenus Gladonotus.\nparts. latiramus , sp. nov."));
+    });
+    it('will not supply a genus where the text names its own', function () use ($names) {
+        // 'Hcemocystidium simondi, n. g. et sp.' is Haemocystidium with the
+        // OCR against it. Unreadable, but it is the genus being named, and
+        // handing simondi to the section heading's genus invents a species.
+        assertEquals(array('Filaria'),
+            $names("Genus Filaria.\nend of paper). Hcemocystidium simondi, n. g. et sp."));
     });
     it('leaves ordinary prose alone', function () use ($names) {
         assertEquals(array('Criotettix'),
