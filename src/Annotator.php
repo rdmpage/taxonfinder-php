@@ -33,6 +33,9 @@ class Annotator
     /** @var int bytes of context either side in the TextQuoteSelector */
     private $contextLength;
 
+    /** @var bool carry a section heading's genus down to bare epithets */
+    private $carryOverKeyGenus = false;
+
     public function __construct(?Parser $parser = null, $contextLength = 32)
     {
         $this->parser = $parser === null ? new Parser() : $parser;
@@ -52,6 +55,24 @@ class Annotator
     }
 
     /**
+     * Whether to carry the genus of a section heading down to the bare
+     * epithets beneath it. See KeyGenus. Off by default: it reports names
+     * that are not written out anywhere in the text, which is a bigger claim
+     * than the rest of the parser makes, and it only fires where a
+     * nomenclatural act says a line is an entry in a key.
+     */
+    public function setCarryOverKeyGenus($carryOver)
+    {
+        $this->carryOverKeyGenus = (bool) $carryOver;
+        return $this;
+    }
+
+    public function carryOverKeyGenus()
+    {
+        return $this->carryOverKeyGenus;
+    }
+
+    /**
      * @param string $text
      * @param bool   $isHtml
      * @return array list of annotation records
@@ -62,44 +83,64 @@ class Annotator
         $length = strlen($text);
         $annotations = array();
 
+        $covered = array();
         foreach ($this->parser->findNamesAndOffsets($text, $isHtml) as $result) {
             list($start, $end) = $result['offsets'];
             // Names in comma separated lists can be reported with an end
             // offset past the end of the text; keep the span inside it.
             $start = max(0, min($start, $length));
             $end = max($start, min($end, $length));
+            $covered[] = array($start, $end);
+            $annotations[] = $this->record($text, $result['name'], $start, $end);
+        }
 
-            $annotation = array(
-                'type' => 'Annotation',
-                'body' => array(
-                    'type' => 'TextualBody',
-                    'purpose' => 'identifying',
-                    'value' => $result['name'],
-                ),
-                'target' => array(
-                    'selector' => array(
-                        array(
-                            'type' => 'TextQuoteSelector',
-                            'prefix' => $this->prefix($text, $start),
-                            'exact' => substr($text, $start, $end - $start),
-                            'suffix' => $this->suffix($text, $end),
-                        ),
-                        array(
-                            'type' => 'TextPositionSelector',
-                            'start' => $start,
-                            'end' => $end,
-                        ),
-                    ),
-                ),
-            );
-
-            $nomenclature = Nomenclature::detect($text, $end);
-            if ($nomenclature !== null) {
-                $annotation['nomenclature'] = $nomenclature;
+        if ($this->carryOverKeyGenus) {
+            $carried = KeyGenus::find($text, $this->parser->dictionaries(), $covered);
+            foreach ($carried as $result) {
+                list($start, $end) = $result['offsets'];
+                $annotations[] = $this->record($text, $result['name'], $start, $end);
             }
-            $annotations[] = $annotation;
+            if ($carried) {
+                usort($annotations, function ($a, $b) {
+                    return $a['target']['selector'][1]['start']
+                         - $b['target']['selector'][1]['start'];
+                });
+            }
         }
         return $annotations;
+    }
+
+    /** One annotation record for a name found between $start and $end. */
+    private function record($text, $name, $start, $end)
+    {
+        $annotation = array(
+            'type' => 'Annotation',
+            'body' => array(
+                'type' => 'TextualBody',
+                'purpose' => 'identifying',
+                'value' => $name,
+            ),
+            'target' => array(
+                'selector' => array(
+                    array(
+                        'type' => 'TextQuoteSelector',
+                        'prefix' => $this->prefix($text, $start),
+                        'exact' => substr($text, $start, $end - $start),
+                        'suffix' => $this->suffix($text, $end),
+                    ),
+                    array(
+                        'type' => 'TextPositionSelector',
+                        'start' => $start,
+                        'end' => $end,
+                    ),
+                ),
+            ),
+        );
+        $nomenclature = Nomenclature::detect($text, $end);
+        if ($nomenclature !== null) {
+            $annotation['nomenclature'] = $nomenclature;
+        }
+        return $annotation;
     }
 
     private function prefix($text, $start)

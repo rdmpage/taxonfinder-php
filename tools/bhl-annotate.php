@@ -5,6 +5,9 @@
  *
  *   php tools/bhl-annotate.php 273748.txt --pages=273748.pages.tsv > 273748.json
  *
+ * A genus in a section heading is carried down to the bare epithets beneath
+ * it, which is how keys are set - --no-carry-over turns that off.
+ *
  * The names are found in the item as a whole, not page by page, because that
  * is what lets an abbreviated genus reach back to where it was spelled out -
  * 'P. penicilliger' becomes 'Platygrapsus penicilliger' from a genus given
@@ -36,17 +39,20 @@ require __DIR__ . '/../autoload.php';
 $file = null;
 $pagesFile = null;
 $context = 32;
+$carryOver = true;
 foreach (array_slice($argv, 1) as $argument) {
     if (preg_match('/^--pages=(.+)$/', $argument, $match)) {
         $pagesFile = $match[1];
     } elseif (preg_match('/^--context=(\d+)$/', $argument, $match)) {
         $context = (int) $match[1];
+    } elseif ($argument === '--no-carry-over') {
+        $carryOver = false;
     } elseif ($file === null) {
         $file = $argument;
     }
 }
 if ($file === null || $pagesFile === null) {
-    fwrite(STDERR, "Usage: bhl-annotate.php <item text> --pages=FILE [--context=N]\n");
+    fwrite(STDERR, "Usage: bhl-annotate.php <item text> --pages=FILE [--context=N] [--no-carry-over]\n");
     exit(1);
 }
 
@@ -58,6 +64,9 @@ if ($text === false || !$pages) {
 }
 
 $finder = new Taxonfinder\Finder(null, $context);
+// Keys are everywhere in this literature, and a key entry prints the epithet
+// alone. See KeyGenus; --no-carry-over turns it off.
+$finder->setCarryOverKeyGenus($carryOver);
 $annotations = array();
 $unplaced = 0;
 $overrun = 0;

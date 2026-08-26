@@ -86,6 +86,18 @@ class Finder
         return $this->marker->markText($text, $isHtml);
     }
 
+    /**
+     * Carry the genus of a section heading down to the bare epithets beneath
+     * it, so a key entry like 'spinilobus , sp. nov.' under 'Key to Species of
+     * Criotettix' is reported as 'Criotettix spinilobus'. See KeyGenus. Off by
+     * default.
+     */
+    public function setCarryOverKeyGenus($carryOver)
+    {
+        $this->annotator->setCarryOverKeyGenus($carryOver);
+        return $this;
+    }
+
     /** How much context each TextQuoteSelector carries. Default 32 bytes. */
     public function setContextLength($contextLength)
     {

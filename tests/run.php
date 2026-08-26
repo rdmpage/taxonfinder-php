@@ -1082,6 +1082,60 @@ describe('#find (annotations)', function () use ($finder) {
     });
 });
 
+describe('#setCarryOverKeyGenus', function () {
+    $names = function ($text) {
+        $finder = new Finder();
+        $finder->setCarryOverKeyGenus(true);
+        $found = array();
+        foreach ($finder->find($text) as $annotation) {
+            $found[$annotation['body']['value']] = true;
+        }
+        return array_keys($found);
+    };
+    it('is off unless asked for', function () {
+        $finder = new Finder();
+        $found = array();
+        foreach ($finder->find("Genus Loxilobus.\nexcised. rugosus, sp. nov.") as $annotation) {
+            $found[] = $annotation['body']['value'];
+        }
+        assertEquals(array('Loxilobus'), $found);
+    });
+    it('carries a genus from Genus X down to a bare epithet', function () use ($names) {
+        assertTrue(in_array('Loxilobus rugosus',
+            $names("Genus Loxilobus.\nexcised. rugosus, sp. nov."), true));
+    });
+    it('carries it from a key heading too', function () use ($names) {
+        assertTrue(in_array('Criotettix spinilobus',
+            $names("Key to Species of Criotettix.\nforward. spinilobus , sp. nov."), true));
+    });
+    it('takes two epithets together', function () use ($names) {
+        assertTrue(in_array('Tettix atypicalis ceylonus',
+            $names("Genus Tettix, Bol.\nabbreviated. atypicalis ceylonus , form. nov."), true));
+    });
+    it('will not read a sentence-final "genus" as a heading', function () use ($names) {
+        // '... an undescribed genus. In the following ...' - In is in the
+        // genus dictionary, and would otherwise become the section genus.
+        assertEquals(array(), $names("an undescribed genus. In stylis , sp. nov."));
+        assertEquals(array(), $names("a monotypic genus. This hills , sp. nov."));
+    });
+    it('needs an act announcing something new, not a bare one', function () use ($names) {
+        // 'species' and 'genus' are acts that stand alone, and ordinary words
+        assertEquals(array('Spodoptera'),
+            $names("Genus Spodoptera.\nSpodoptera is a monotypic genus represented"));
+    });
+    it('refuses a heading whose genus it cannot read', function () use ($names) {
+        // Gladonotus is OCR damage for Cladonotus, so nothing is carried
+        // down to latiramus - and Loxilobus, the section before, is not
+        // quietly used in its place. Loxilobus itself is still a name.
+        assertEquals(array('Loxilobus'),
+            $names("Genus Loxilobus.\nGenus Gladonotus.\nparts. latiramus , sp. nov."));
+    });
+    it('leaves ordinary prose alone', function () use ($names) {
+        assertEquals(array('Criotettix'),
+            $names("Genus Criotettix.\nthe pronotum is convex and rugosus in form."));
+    });
+});
+
 describe('SortedIndex', function () {
     it('finds every term it was built from and nothing else', function () {
         $terms = array('zebra', 'aardvark', 'mole', 'mole', 'Newt', ' vole ', '', 'yak');
