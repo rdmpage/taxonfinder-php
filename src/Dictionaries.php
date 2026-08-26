@@ -26,6 +26,17 @@
  *   2. Drop files into dictionaries/local/, e.g. dictionaries/local/genera_new.txt.
  *      Anything there is merged on top of the shipped dictionaries and is a
  *      tidy place to keep your own additions separate.
+ *   2a. For a harvest from a database, a folder per source and date:
+ *
+ *         dictionaries/local/bionames-2026-08-26/genera_new.txt
+ *         dictionaries/local/bionames-2026-08-26/species_new.txt
+ *         dictionaries/local/bionames-2026-08-26/query.sql
+ *
+ *      Every folder there is found automatically, and compiled and cached the
+ *      way the shipped dictionaries are, so the sorting is done once and not
+ *      every run. Files not named after a dictionary are ignored, which is
+ *      what lets the query that found the names sit beside them. See
+ *      dictionaries/local/README.md.
  *   3. At runtime:
  *        $finder->dictionaries()->add('genera_new', 'Spamalotus');
  *        $finder->dictionaries()->addTerms('species_new', array('montypythonae'));
@@ -94,8 +105,22 @@ class Dictionaries
         $local = $this->directory . DIRECTORY_SEPARATOR . 'local';
         if (is_dir($local)) {
             $this->extraDirectories[] = $local;
+            // A folder per source and date - local/bionames-2026-08-26/ -
+            // holding the same dictionary files, so where a name came from is
+            // written down beside it. Anything else in there is ignored, which
+            // is what lets the query that found them sit alongside.
+            foreach ((array) glob($local . DIRECTORY_SEPARATOR . '*', GLOB_ONLYDIR) as $source) {
+                $this->sourceDirectories[] = $source;
+            }
+            sort($this->sourceDirectories);
         }
     }
+
+    /** @var string[] dated source folders under dictionaries/local/ */
+    private $sourceDirectories = array();
+
+    /** @var array<string, SortedIndex[]> compiled indexes from those folders */
+    private $sourceIndexes = array();
 
     /** The lazily created default instance, shared by all Finders. */
     public static function shared()
@@ -133,10 +158,35 @@ class Dictionaries
                 $this->indexes[$name] = $this->indexFor($name, $file);
             }
         }
+        foreach ($this->sourceDirectories as $directory) {
+            $this->loadSourceDirectory($directory);
+        }
         foreach ($this->extraDirectories as $directory) {
             $this->loadDirectory($directory);
         }
         return $this;
+    }
+
+    /**
+     * Load one dated source folder, compiling it the way the shipped
+     * dictionaries are compiled rather than reading it every run. A harvest
+     * from IPNI or Index Fungorum is not small, and the work of sorting it is
+     * worth doing once.
+     *
+     * The cache key carries the folder name, so two sources contributing to
+     * the same dictionary do not overwrite one another's index, and an
+     * updated harvest rebuilds only itself.
+     */
+    private function loadSourceDirectory($directory)
+    {
+        $source = basename($directory);
+        foreach (self::$dictionaryNames as $name) {
+            $file = $directory . DIRECTORY_SEPARATOR . $name . '.txt';
+            if (!is_file($file)) {
+                continue;
+            }
+            $this->sourceIndexes[$name][] = $this->indexFor('local-' . $source . '-' . $name, $file);
+        }
     }
 
     /** Read every known dictionary file in a directory into the overlay. */
@@ -257,7 +307,17 @@ class Dictionaries
         if (isset($this->overlay[$dictionary]) && array_key_exists($term, $this->overlay[$dictionary])) {
             return $this->overlay[$dictionary][$term];
         }
-        return isset($this->indexes[$dictionary]) && $this->indexes[$dictionary]->has($term);
+        if (isset($this->indexes[$dictionary]) && $this->indexes[$dictionary]->has($term)) {
+            return true;
+        }
+        if (isset($this->sourceIndexes[$dictionary])) {
+            foreach ($this->sourceIndexes[$dictionary] as $index) {
+                if ($index->has($term)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Like has(), but lowercases and trims $term first. */
@@ -273,6 +333,24 @@ class Dictionaries
             $this->load();
         }
         $total = isset($this->indexes[$dictionary]) ? $this->indexes[$dictionary]->count() : 0;
+        if (isset($this->sourceIndexes[$dictionary])) {
+            // A harvest usually repeats names we already hold, so count only
+            // what it adds. Deduplicated across the sources too, two of them
+            // being just as likely to overlap.
+            $seen = array();
+            foreach ($this->sourceIndexes[$dictionary] as $index) {
+                foreach ($index->terms() as $term) {
+                    if (isset($seen[$term])) {
+                        continue;
+                    }
+                    $seen[$term] = true;
+                    if (!isset($this->indexes[$dictionary])
+                        || !$this->indexes[$dictionary]->has($term)) {
+                        $total++;
+                    }
+                }
+            }
+        }
         if (isset($this->overlay[$dictionary])) {
             foreach ($this->overlay[$dictionary] as $term => $present) {
                 if ($present && !(isset($this->indexes[$dictionary])

@@ -1374,6 +1374,75 @@ describe('SortedIndex', function () {
     });
 });
 
+describe('dated source folders under local/', function () {
+    $build = function (array $files) {
+        $root = sys_get_temp_dir() . '/taxonfinder-src-' . getmypid();
+        @mkdir($root . '/local/bionames-2026-08-26', 0777, true);
+        foreach ($files as $name => $contents) {
+            file_put_contents($root . '/local/bionames-2026-08-26/' . $name, $contents);
+        }
+        return $root;
+    };
+    $clean = function ($root) {
+        foreach ((array) glob($root . '/local/bionames-2026-08-26/*') as $file) {
+            unlink($file);
+        }
+        @rmdir($root . '/local/bionames-2026-08-26');
+        @rmdir($root . '/local');
+        foreach ((array) glob($root . '/cache/*') as $file) {
+            unlink($file);
+        }
+        @rmdir($root . '/cache');
+        @rmdir($root);
+    };
+    it('picks a folder up without being told to', function () use ($build, $clean) {
+        $root = $build(array('species_new.txt' => "hadroglossa\nmonsmaripi\n"));
+        $dictionaries = new Dictionaries($root);
+        assertTrue($dictionaries->has('species_new', 'hadroglossa'));
+        assertTrue($dictionaries->has('species_new', 'monsmaripi'));
+        assertFalse($dictionaries->has('species_new', 'neverpublished'));
+        $clean($root);
+    });
+    it('ignores whatever else is in the folder', function () use ($build, $clean) {
+        $root = $build(array(
+            'genera_new.txt' => "Ptilototheca\n",
+            'query.sql' => "SELECT genus FROM names;\n",
+            'notes.md' => "harvested 2026-08-26\n",
+        ));
+        $dictionaries = new Dictionaries($root);
+        assertTrue($dictionaries->has('genera_new', 'ptilototheca'));
+        // the query is not a genus
+        assertFalse($dictionaries->has('genera_new', 'select genus from names;'));
+        $clean($root);
+    });
+    it('compiles the folder and caches it', function () use ($build, $clean) {
+        $root = $build(array('genera_new.txt' => "Ptilototheca\n"));
+        $dictionaries = new Dictionaries($root);
+        $dictionaries->load();
+        $cached = (array) glob($root . '/cache/local-bionames-2026-08-26-genera_new-*.idx');
+        assertEquals(1, count($cached));
+        // and a second reading finds the same terms through the cache
+        $again = new Dictionaries($root);
+        assertTrue($again->has('genera_new', 'ptilototheca'));
+        $clean($root);
+    });
+    it('lets a harvested genus and epithet make a name', function () use ($build, $clean) {
+        $root = $build(array(
+            'genera_new.txt' => "Ptilototheca\n",
+            'species_new.txt' => "hadroglossa\n",
+        ));
+        $finder = new Finder(new Dictionaries($root));
+        $found = array();
+        foreach ($finder->find('Ptilototheca hadroglossa gen. et sp. nov.') as $annotation) {
+            $found[] = $annotation['body']['value'];
+        }
+        // neither was ever written down together, the dictionaries being
+        // consulted one for the genus and one for the epithet
+        assertEquals(array('Ptilototheca hadroglossa'), $found);
+        $clean($root);
+    });
+});
+
 describe('extending the dictionaries', function () {
     it('finds a name added at runtime', function () {
         $finder = new Finder();
