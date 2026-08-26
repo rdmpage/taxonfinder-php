@@ -111,6 +111,18 @@ class Annotator
         // Before the identifiers, so one lands on the whole name rather than
         // the genus the parser stopped at.
         CapitalEpithet::extend($text, $this->parser->dictionaries(), $annotations);
+
+        // Last, so that it reads the finished name. 'sp. nov.' on a genus
+        // alone publishes nothing, but the passes above are what turn a bare
+        // genus into the binomen the act really sits on - do this before them
+        // and every name they complete is judged on what it used to be.
+        foreach ($annotations as $index => $annotation) {
+            if (isset($annotation['nomenclature'])) {
+                $annotations[$index]['nomenclature'] = Nomenclature::readAgainstName(
+                    $annotation['nomenclature'], $annotation['body']['value']);
+            }
+        }
+
         self::attachIdentifiers($text, $annotations);
         return $annotations;
     }

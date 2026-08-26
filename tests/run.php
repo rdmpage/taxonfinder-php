@@ -1085,6 +1085,35 @@ describe('a one letter act against an initial', function () {
     });
 });
 
+describe('an act read against its name', function () {
+    $split = function ($text) {
+        $finder = new Finder();
+        $found = $finder->find($text);
+        if (!$found || !isset($found[0]['nomenclature'])) {
+            return array(array(), array());
+        }
+        return array($found[0]['nomenclature']['acts'],
+                     $found[0]['nomenclature']['qualifiers']);
+    };
+    it('publishes a species only from a binomen', function () use ($split) {
+        assertEquals(array(array('sp. nov.'), array()), $split('Amanita muscaria sp. nov.'));
+    });
+    it('reads sp. nov. on a genus alone as open nomenclature', function () use ($split) {
+        // 'Pristiophorus sp. nov.' points at a species not yet named; there
+        // is no name there to publish. Sigovini et al. 2016.
+        assertEquals(array(array(), array('sp. nov.')), $split('Pristiophorus sp. nov.'));
+    });
+    it('leaves a new genus or family alone', function () use ($split) {
+        // those ranks really are published as one word
+        assertEquals(array(array('gen. nov.'), array()), $split('Baruna gen. nov.'));
+        assertEquals(array(array('fam. nov.'), array()), $split('Onconotellus fam. nov.'));
+    });
+    it('applies to the ranks below species too', function () use ($split) {
+        assertEquals(array(array(), array('var. nov.')), $split('Pristiophorus var. nov.'));
+        assertEquals(array(array('var. nov.'), array()), $split('Amanita muscaria var. nov.'));
+    });
+});
+
 describe('open nomenclature qualifiers', function () {
     $of = function ($text, $end) {
         $found = Taxonfinder\Nomenclature::detect($text, $end);

@@ -546,6 +546,53 @@ class Nomenclature
         return isset(self::$citationWords[strtolower($word)]);
     }
 
+    /**
+     * Acts that need more than a uninomial to be an act at all.
+     *
+     * A new species is published as a binomen and a new subspecies as a
+     * trinomen; a new genus or family is published as one word, so those are
+     * not here.
+     */
+    private static $needsBinomen = array(
+        'sp. nov.' => true,
+        'subsp. nov.' => true,
+        'var. nov.' => true,
+        'forma nov.' => true,
+    );
+
+    /**
+     * Re-read an annotation against the name it was found on.
+     *
+     * 'sp. nov.' after a binomen publishes a name. After a genus on its own
+     * it cannot: there is no name there to publish. Sigovini et al. 2016 read
+     * that second form as open nomenclature - a way of pointing at a new
+     * species not yet named, as in 'Pristiophorus sp. nov. A' - and say
+     * plainly that it is no nomenclatural act. So it moves to the qualifiers.
+     *
+     * It also catches our own failures, which look the same from here: where
+     * an epithet was unreadable and the act attached to the bare genus, that
+     * row was never an act either.
+     *
+     * @param array  $nomenclature as detect() returned it
+     * @param string $name         the interpreted name it was found on
+     */
+    public static function readAgainstName(array $nomenclature, $name)
+    {
+        if (strpos(trim($name), ' ') !== false) {
+            return $nomenclature;
+        }
+        $acts = array();
+        foreach ($nomenclature['acts'] as $act) {
+            if (isset(self::$needsBinomen[$act])) {
+                $nomenclature['qualifiers'][] = $act;
+            } else {
+                $acts[] = $act;
+            }
+        }
+        $nomenclature['acts'] = $acts;
+        return $nomenclature;
+    }
+
     /** Did any of these acts come with a word meaning "new"? */
     private static function announcesSomethingNew(array $acts)
     {
