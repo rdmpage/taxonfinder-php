@@ -1002,6 +1002,45 @@ describe('#markText and nomenclature', function () use ($finder) {
     });
 });
 
+describe('a capitalised specific epithet', function () {
+    $names = function ($text) {
+        $finder = new Finder();
+        $found = array();
+        foreach ($finder->find($text) as $annotation) {
+            $found[] = $annotation['body']['value'];
+        }
+        return $found;
+    };
+    it('takes in a patronym the parser stopped short of', function () use ($names) {
+        // botany capitalised an epithet built on a name until the 1950s
+        assertEquals(array('Boscia plantefolii'),
+            $names('Boscia Plantefolii Hadj Moust. sp. nov.'));
+        assertEquals(array('Cleome perrieri'),
+            $names('Cleome Perrieri Hadj Moust. sp. nov.'));
+    });
+    it('leaves a place name alone even with an act behind it', function () use ($names) {
+        // Costa is a genus and rica an epithet; 79 occurrences in the corpus
+        assertEquals(array(), $names('Costa Rica is a country'));
+        assertEquals(array(), $names('collected in South America sp. nov. nearby'));
+    });
+    it('needs an act, so an ordinary mention is untouched', function () use ($names) {
+        // 575 places read this way without being names; only 12 have an act
+        assertEquals(array('Cedrus'), $names('the timber of Cedrus Deodara is used'));
+    });
+    it('needs the epithet to look like a patronym', function () use ($names) {
+        assertEquals(array('Boscia'), $names('Boscia Rica Hadj Moust. sp. nov.'));
+    });
+    it('will not take a word that is a genus in its own right', function () use ($names) {
+        $found = $names('Gastropoda Pulmonata sp. nov.');
+        assertFalse(in_array('Gastropoda pulmonata', $found, true));
+    });
+    it('still refuses a shouted epithet', function () use ($names) {
+        // MUSCARIA scores as a genus of its own, which it did before this and
+        // is a separate matter; what must not happen is it joining Amanita
+        assertFalse(in_array('Amanita muscaria', $names('Amanita MUSCARIA sp. nov.'), true));
+    });
+});
+
 describe('a one letter act against an initial', function () {
     $acts = function ($text, $end) {
         $found = Taxonfinder\Nomenclature::detect($text, $end);

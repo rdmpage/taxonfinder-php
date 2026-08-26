@@ -15,6 +15,7 @@ require_once __DIR__ . '/src/Parser.php';
 require_once __DIR__ . '/src/Nomenclature.php';
 require_once __DIR__ . '/src/KeyGenus.php';
 require_once __DIR__ . '/src/Identifiers.php';
+require_once __DIR__ . '/src/CapitalEpithet.php';
 require_once __DIR__ . '/src/Annotator.php';
 require_once __DIR__ . '/src/NameTag.php';
 require_once __DIR__ . '/src/Marker.php';

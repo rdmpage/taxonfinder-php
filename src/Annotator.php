@@ -108,6 +108,9 @@ class Annotator
             }
         }
 
+        // Before the identifiers, so one lands on the whole name rather than
+        // the genus the parser stopped at.
+        CapitalEpithet::extend($text, $this->parser->dictionaries(), $annotations);
         self::attachIdentifiers($text, $annotations);
         return $annotations;
     }

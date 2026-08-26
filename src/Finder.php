@@ -61,12 +61,21 @@ class Finder
         return $this->annotator->annotate($text, $isHtml);
     }
 
-    /** Just the names, deduplicated, in the order they first appear. */
+    /**
+     * Just the names, deduplicated, in the order they first appear.
+     *
+     * Taken from the annotations rather than straight from the parser, so
+     * that what this returns and what find() returns are the same names. The
+     * passes that run after the parser - a genus carried down from a heading,
+     * a capitalised epithet taken back in - would otherwise show up in one and
+     * not the other, and a list of names would disagree with the records
+     * built from the same text.
+     */
     public function names($text, $isHtml = false)
     {
         $names = array();
-        foreach ($this->parser->findNamesAndOffsets($text, $isHtml) as $result) {
-            $names[$result['name']] = true;
+        foreach ($this->annotator->annotate($text, $isHtml) as $annotation) {
+            $names[$annotation['body']['value']] = true;
         }
         return array_keys($names);
     }
