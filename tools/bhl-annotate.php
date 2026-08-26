@@ -8,6 +8,9 @@
  * A genus in a section heading is carried down to the bare epithets beneath
  * it, which is how keys are set - --no-carry-over turns that off.
  *
+ * --acts=FILE also writes the names carrying a nomenclatural act as a TSV of
+ * PageID, name and act.
+ *
  * The names are found in the item as a whole, not page by page, because that
  * is what lets an abbreviated genus reach back to where it was spelled out -
  * 'P. penicilliger' becomes 'Platygrapsus penicilliger' from a genus given
@@ -58,11 +61,17 @@ function memoryLimitBytes()
 
 $file = null;
 $pagesFile = null;
+$actsFile = null;
 $context = 32;
 $carryOver = true;
+$qualifiers = false;
 foreach (array_slice($argv, 1) as $argument) {
     if (preg_match('/^--pages=(.+)$/', $argument, $match)) {
         $pagesFile = $match[1];
+    } elseif (preg_match('/^--acts=(.+)$/', $argument, $match)) {
+        $actsFile = $match[1];
+    } elseif ($argument === '--qualifiers') {
+        $qualifiers = true;
     } elseif (preg_match('/^--context=(\d+)$/', $argument, $match)) {
         $context = (int) $match[1];
     } elseif ($argument === '--no-carry-over') {
@@ -72,7 +81,8 @@ foreach (array_slice($argv, 1) as $argument) {
     }
 }
 if ($file === null || $pagesFile === null) {
-    fwrite(STDERR, "Usage: bhl-annotate.php <item text> --pages=FILE [--context=N] [--no-carry-over]\n");
+    fwrite(STDERR, "Usage: bhl-annotate.php <item text> --pages=FILE [--acts=FILE]\n"
+        . "                        [--qualifiers] [--context=N] [--no-carry-over]\n");
     exit(1);
 }
 
@@ -135,6 +145,10 @@ foreach ($finder->find($text) as $annotation) {
     $annotations[] = $annotation;
 }
 
+if ($actsFile !== null) {
+    writeActs($actsFile, $annotations, $qualifiers);
+}
+
 $flags = JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
 if (defined('JSON_INVALID_UTF8_SUBSTITUTE')) {
     $flags |= JSON_INVALID_UTF8_SUBSTITUTE;
@@ -154,6 +168,47 @@ if ($strayed) {
     foreach ($strayed as $one) {
         fprintf(STDERR, "  %s\n", $one);
     }
+}
+
+/**
+ * The names carrying a nomenclatural act, as PageID, name, act.
+ *
+ * One row per act, so the column holds one value and can be grouped on: a
+ * genus and species published together carry 'gen. nov.' and 'sp. nov.' and
+ * get a row each.
+ *
+ * Only acts, by default. Nomenclature reports an act read next to a "new"
+ * word as 'sp. nov.' and one that stood on its own as 'sp.', and the second
+ * announces nothing - 'Cicindela, sp.' says the species was not identified.
+ * --qualifiers puts those in as well.
+ */
+function writeActs($path, array $annotations, $qualifiers)
+{
+    $handle = fopen($path, 'w');
+    if ($handle === false) {
+        fwrite(STDERR, "Could not write $path\n");
+        exit(1);
+    }
+    fwrite($handle, "PageID\tname\tact\n");
+    $rows = 0;
+    foreach ($annotations as $annotation) {
+        if (!isset($annotation['nomenclature'])) {
+            continue;
+        }
+        foreach ($annotation['nomenclature']['acts'] as $act) {
+            if (!$qualifiers && substr($act, -4) !== 'nov.') {
+                continue;
+            }
+            fwrite($handle, implode("\t", array(
+                $annotation['target']['source'],
+                $annotation['body']['value'],
+                $act,
+            )) . "\n");
+            $rows++;
+        }
+    }
+    fclose($handle);
+    fprintf(STDERR, "%d act%s -> %s\n", $rows, $rows === 1 ? '' : 's', $path);
 }
 
 /** start, end, PageID, sequence - one line per page, as bhl-item.php writes it. */
