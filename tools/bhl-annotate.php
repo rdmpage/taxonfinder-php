@@ -126,20 +126,20 @@ foreach ($finder->find($text) as $annotation) {
         'source' => $page['pageid'],
         'selector' => $selectors,
     );
-    if (isset($annotation['nomenclature'])) {
+    if (isset($annotation['statements'])) {
         // Kept against the same page as the name it belongs to, so both
         // spans are read in one coordinate system. An act that reaches onto
         // the next page would give an offset the page cannot answer, so say
         // so rather than write a span that quietly resolves to nothing. It
         // has so far always meant the act was misread off the running header
         // at the top of the following page.
-        if ($annotation['nomenclature']['end'] > $page['end']) {
+        if ($annotation['statements']['end'] > $page['end']) {
             $strayed[] = $page['pageid'] . ' ' . $annotation['body']['value']
-                . ' (' . $annotation['nomenclature']['verbatim'] . ')';
-            unset($annotation['nomenclature']);
+                . ' (' . $annotation['statements']['verbatim'] . ')';
+            unset($annotation['statements']);
         } else {
-            $annotation['nomenclature']['start'] -= $page['start'];
-            $annotation['nomenclature']['end'] -= $page['start'];
+            $annotation['statements']['start'] -= $page['start'];
+            $annotation['statements']['end'] -= $page['start'];
         }
     }
     $annotations[] = $annotation;
@@ -171,12 +171,27 @@ if ($strayed) {
 }
 
 /**
- * The registry identifier printed under an act, where the paper gives one.
+ * The forms that publish a name.
  *
- * An act LSID is preferred: it names the act itself, which is what a row of
- * this table is. Anything else the annotation carries will do otherwise, and
- * an empty column where the paper registered nothing - which is most of BHL,
- * registration being a thing of the last twenty years.
+ * This list is what "a first occurrence" means, and it is written out here
+ * rather than left implicit in the parser so that it can be argued with. A
+ * statement not on it says something about a name published elsewhere - that
+ * it is a synonym, that it is invalid - and belongs to a different question.
+ */
+function publishingForms()
+{
+    return array(
+        'sp. nov.' => true, 'gen. nov.' => true, 'fam. nov.' => true,
+        'subgen. nov.' => true, 'subfam. nov.' => true, 'subsp. nov.' => true,
+        'var. nov.' => true, 'forma nov.' => true, 'comb. nov.' => true,
+        'nom. nov.' => true,
+    );
+}
+
+/**
+ * The registry identifier printed under a statement, where the paper gives
+ * one. An act LSID is preferred: it names the act itself, which is what a row
+ * of this table is.
  */
 function identifierFor(array $annotation)
 {
@@ -192,20 +207,16 @@ function identifierFor(array $annotation)
 }
 
 /**
- * The names carrying a nomenclatural act, as PageID, name, act and the
- * registry identifier printed under it.
+ * The names carrying a statement, as PageID, name, statement and the registry
+ * identifier printed under it.
  *
- * One row per act, so the column holds one value and can be grouped on: a
- * genus and species published together carry 'gen. nov.' and 'sp. nov.' and
- * get a row each.
+ * One row per statement, so the column holds a single value and can be
+ * grouped on: a genus and its type species published together carry
+ * 'gen. nov.' and 'sp. nov.' and take a row each.
  *
- * Only acts, by default. Nomenclature keeps the two apart now: what was read
- * beside a "new" word is an act and goes in .acts, and what stood on its own
- * is an open nomenclature qualifier and goes in .qualifiers - 'Cicindela, sp.'
- * says the species was not identified and announces nothing. --qualifiers
- * puts them in as well, along with the taxonomic judgments - a synonymy or a
- * rank change speaks of names published elsewhere and puts none into the
- * world, so neither belongs in a record of first occurrences.
+ * Only the statements that publish a name, by default. --qualifiers writes
+ * every statement, which is what you want to ask a different question of the
+ * same text - which pages say anything at all about a name.
  */
 function writeActs($path, array $annotations, $qualifiers)
 {
@@ -214,32 +225,28 @@ function writeActs($path, array $annotations, $qualifiers)
         fwrite(STDERR, "Could not write $path\n");
         exit(1);
     }
-    fwrite($handle, "PageID\tname\tact\tidentifier\n");
+    fwrite($handle, "PageID\tname\tstatement\tidentifier\n");
+    $publishing = publishingForms();
     $rows = 0;
     foreach ($annotations as $annotation) {
-        if (!isset($annotation['nomenclature'])) {
+        if (!isset($annotation['statements'])) {
             continue;
         }
-        $terms = $annotation['nomenclature']['acts'];
-        if ($qualifiers) {
-            foreach (array('judgments', 'qualifiers') as $other) {
-                if (isset($annotation['nomenclature'][$other])) {
-                    $terms = array_merge($terms, $annotation['nomenclature'][$other]);
-                }
+        foreach ($annotation['statements']['terms'] as $term) {
+            if (!$qualifiers && !isset($publishing[$term])) {
+                continue;
             }
-        }
-        foreach ($terms as $act) {
             fwrite($handle, implode("\t", array(
                 $annotation['target']['source'],
                 $annotation['body']['value'],
-                $act,
+                $term,
                 identifierFor($annotation),
             )) . "\n");
             $rows++;
         }
     }
     fclose($handle);
-    fprintf(STDERR, "%d act%s -> %s\n", $rows, $rows === 1 ? '' : 's', $path);
+    fprintf(STDERR, "%d statement%s -> %s\n", $rows, $rows === 1 ? '' : 's', $path);
 }
 
 /** start, end, PageID, sequence - one line per page, as bhl-item.php writes it. */

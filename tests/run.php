@@ -791,8 +791,8 @@ describe('#markText', function () use ($finder) {
     it('wraps found names in <mark>, inside a plain <html> element', function () use ($finder) {
         assertEquals(
             "<html>\n<meta charset=\"utf-8\">\n"
-            . "<style>mark.nomenclature { background: pink }"
-            . " mark.judgment { background: paleturquoise }</style>\n"
+            . "<style>mark.statement { background: pink }"
+            . " mark.informal { background: #eee }</style>\n"
             . "Wow, <mark>Felis leo</mark> rocks\n</html>\n",
             $finder->markText('Wow, Felis leo rocks')
         );
@@ -800,8 +800,8 @@ describe('#markText', function () use ($finder) {
     it('ends each line with <br>', function () use ($finder) {
         assertEquals(
             "<html>\n<meta charset=\"utf-8\">\n"
-            . "<style>mark.nomenclature { background: pink }"
-            . " mark.judgment { background: paleturquoise }</style>\n"
+            . "<style>mark.statement { background: pink }"
+            . " mark.informal { background: #eee }</style>\n"
             . "<mark>Felis leo</mark><br>\n<mark>Amanita muscaria</mark>\n</html>\n",
             $finder->markText("Felis leo\nAmanita muscaria")
         );
@@ -809,8 +809,8 @@ describe('#markText', function () use ($finder) {
     it('reads a carriage return as the end of a line too', function () use ($finder) {
         assertEquals(
             "<html>\n<meta charset=\"utf-8\">\n"
-            . "<style>mark.nomenclature { background: pink }"
-            . " mark.judgment { background: paleturquoise }</style>\n"
+            . "<style>mark.statement { background: pink }"
+            . " mark.informal { background: #eee }</style>\n"
             . "a<br>\nb<br>\nc\n</html>\n",
             $finder->markText("a\r\nb\rc")
         );
@@ -818,8 +818,8 @@ describe('#markText', function () use ($finder) {
     it('escapes markup in the source text', function () use ($finder) {
         assertEquals(
             "<html>\n<meta charset=\"utf-8\">\n"
-            . "<style>mark.nomenclature { background: pink }"
-            . " mark.judgment { background: paleturquoise }</style>\n"
+            . "<style>mark.statement { background: pink }"
+            . " mark.informal { background: #eee }</style>\n"
             . "&lt;b&gt; &amp; <mark>Felis leo</mark>\n</html>\n",
             $finder->markText('<b> & Felis leo')
         );
@@ -827,8 +827,8 @@ describe('#markText', function () use ($finder) {
     it('leaves text without names alone', function () use ($finder) {
         assertEquals(
             "<html>\n<meta charset=\"utf-8\">\n"
-            . "<style>mark.nomenclature { background: pink }"
-            . " mark.judgment { background: paleturquoise }</style>\n"
+            . "<style>mark.statement { background: pink }"
+            . " mark.informal { background: #eee }</style>\n"
             . "nothing here\n</html>\n",
             $finder->markText('nothing here')
         );
@@ -836,19 +836,19 @@ describe('#markText', function () use ($finder) {
     it('marks the nomenclatural annotation after a name', function () use ($finder) {
         assertEquals(
             "<html>\n<meta charset=\"utf-8\">\n"
-            . "<style>mark.nomenclature { background: pink }"
-            . " mark.judgment { background: paleturquoise }</style>\n"
-            . "<mark>Deltonotus</mark> <mark class=\"nomenclature\">gen. nov.</mark>\n</html>\n",
+            . "<style>mark.statement { background: pink }"
+            . " mark.informal { background: #eee }</style>\n"
+            . "<mark>Deltonotus</mark> <mark class=\"statement\">gen. nov.</mark>\n</html>\n",
             $finder->markText('Deltonotus gen. nov.')
         );
     });
     it('marks the act where it stands, inserting nothing', function () use ($finder) {
         // the comma between the two is the source's own
         assertTrue(strpos($finder->markText('Lygus buxtoni, sp. n.'),
-            '<mark>Lygus buxtoni</mark>, <mark class="nomenclature">sp. n.</mark>') !== false);
+            '<mark>Lygus buxtoni</mark>, <mark class="statement">sp. n.</mark>') !== false);
     });
     it('leaves a name with no annotation in a plain mark', function () use ($finder) {
-        assertTrue(strpos($finder->markText('Wow, Felis leo rocks'), 'nomenclature">') === false);
+        assertTrue(strpos($finder->markText('Wow, Felis leo rocks'), 'statement">') === false);
     });
     it('marks HTML in place, without escaping or a wrapper', function () use ($finder) {
         assertEquals(
@@ -1023,18 +1023,21 @@ describe('acts against qualifiers', function () {
 describe('#markText and nomenclature', function () use ($finder) {
     it('marks an act in pink', function () use ($finder) {
         assertTrue(strpos($finder->markText('Deltonotus gen. nov.'),
-            '<mark class="nomenclature">gen. nov.</mark>') !== false);
+            '<mark class="statement">gen. nov.</mark>') !== false);
     });
     it('leaves an open nomenclature qualifier unmarked', function () use ($finder) {
         // 'Cicindela, sp.' says the species was not identified; nothing is
         // being announced, so it is not an act and is not coloured as one
         assertTrue(strpos($finder->markText('Synopsis of the Cicindela, sp.'),
-            'nomenclature">') === false);
+            'statement">') === false);
     });
-    it('reports the qualifier all the same', function () use ($finder) {
-        $annotations = $finder->find('Synopsis of the Cicindela, sp.');
-        assertEquals(array(), $annotations[0]['nomenclature']['acts']);
-        assertEquals(array('sp.'), $annotations[0]['nomenclature']['qualifiers']);
+    it('keeps the qualifier in the name and calls it informal', function () use ($finder) {
+        // 'Cicindela, sp.' says the species was not identified. The qualifier
+        // stands in for the epithet, so it belongs to the name.
+        $annotation = $finder->find('Synopsis of the Cicindela, sp.')[0];
+        assertEquals('Cicindela sp.', $annotation['body']['value']);
+        assertFalse($annotation['formal']);
+        assertFalse(isset($annotation['statements']));
     });
 });
 
@@ -1064,7 +1067,9 @@ describe('a capitalised specific epithet', function () {
         assertEquals(array('Cedrus'), $names('the timber of Cedrus Deodara is used'));
     });
     it('needs the epithet to look like a patronym', function () use ($names) {
-        assertEquals(array('Boscia'), $names('Boscia Rica Hadj Moust. sp. nov.'));
+        // Rica is no patronym, so nothing is taken in and the bare genus is
+        // left carrying an undescribed species
+        assertEquals(array('Boscia sp. nov.'), $names('Boscia Rica Hadj Moust. sp. nov.'));
     });
     it('will not take a word that is a genus in its own right', function () use ($names) {
         $found = $names('Gastropoda Pulmonata sp. nov.');
@@ -1103,32 +1108,38 @@ describe('a one letter act against an initial', function () {
     });
 });
 
-describe('an act read against its name', function () {
-    $split = function ($text) {
+describe('a statement read against its name', function () {
+    $read = function ($text) {
         $finder = new Finder();
         $found = $finder->find($text);
-        if (!$found || !isset($found[0]['nomenclature'])) {
-            return array(array(), array());
+        if (!$found) {
+            return array(null, null, array());
         }
-        return array($found[0]['nomenclature']['acts'],
-                     $found[0]['nomenclature']['qualifiers']);
+        return array($found[0]['body']['value'], $found[0]['formal'],
+            isset($found[0]['statements']) ? $found[0]['statements']['terms'] : array());
     };
-    it('publishes a species only from a binomen', function () use ($split) {
-        assertEquals(array(array('sp. nov.'), array()), $split('Amanita muscaria sp. nov.'));
+    it('publishes a species only from a binomen', function () use ($read) {
+        assertEquals(array('Amanita muscaria', true, array('sp. nov.')),
+            $read('Amanita muscaria sp. nov.'));
     });
-    it('reads sp. nov. on a genus alone as open nomenclature', function () use ($split) {
-        // 'Pristiophorus sp. nov.' points at a species not yet named; there
-        // is no name there to publish. Sigovini et al. 2016.
-        assertEquals(array(array(), array('sp. nov.')), $split('Pristiophorus sp. nov.'));
+    it('keeps sp. nov. in the name where there is no name to publish', function () use ($read) {
+        // 'Pristiophorus sp. nov.' says a new species of Pristiophorus was
+        // found - what was collected, not a name. It stays in the name, and
+        // the name is informal.
+        assertEquals(array('Pristiophorus sp. nov.', false, array()),
+            $read('Pristiophorus sp. nov.'));
     });
-    it('leaves a new genus or family alone', function () use ($split) {
+    it('leaves a new genus or family alone', function () use ($read) {
         // those ranks really are published as one word
-        assertEquals(array(array('gen. nov.'), array()), $split('Baruna gen. nov.'));
-        assertEquals(array(array('fam. nov.'), array()), $split('Onconotellus fam. nov.'));
+        assertEquals(array('Baruna', true, array('gen. nov.')), $read('Baruna gen. nov.'));
+        assertEquals(array('Onconotellus', true, array('fam. nov.')),
+            $read('Onconotellus fam. nov.'));
     });
-    it('applies to the ranks below species too', function () use ($split) {
-        assertEquals(array(array(), array('var. nov.')), $split('Pristiophorus var. nov.'));
-        assertEquals(array(array('var. nov.'), array()), $split('Amanita muscaria var. nov.'));
+    it('applies to the ranks below species too', function () use ($read) {
+        assertEquals(array('Pristiophorus var. nov.', false, array()),
+            $read('Pristiophorus var. nov.'));
+        assertEquals(array('Amanita muscaria', true, array('var. nov.')),
+            $read('Amanita muscaria var. nov.'));
     });
 });
 
@@ -1137,35 +1148,34 @@ describe('a qualifier between genus and epithet', function () {
         $finder = new Finder();
         $found = $finder->find($text);
         if (!$found) {
-            return array(null, array());
+            return array(null, null);
         }
-        return array($found[0]['body']['value'],
-            isset($found[0]['nomenclature']) ? $found[0]['nomenclature']['qualifiers'] : array());
+        return array($found[0]['body']['value'], $found[0]['formal']);
     };
-    it('reads the epithet through the qualifier', function () use ($read) {
-        // where Sigovini et al. 2016 say the qualifier belongs
-        assertEquals(array('Odontostilbe stenodon', array('cf.')),
+    it('keeps the qualifier where the author put it', function () use ($read) {
+        // Sigovini et al. 2016 place it between genus and epithet
+        assertEquals(array('Odontostilbe cf. stenodon', false),
             $read('Odontostilbe cf. stenodon'));
-        assertEquals(array('Pourtalesia alcocki', array('aff.')),
+        assertEquals(array('Pourtalesia aff. alcocki', false),
             $read('Pourtalesia aff. alcocki'));
     });
-    it('keeps a qualifier that follows the whole name', function () use ($read) {
-        assertEquals(array('Amanita muscaria', array('cf.')), $read('Amanita muscaria cf.'));
+    it('reads the epithet through it all the same', function () use ($read) {
+        // the epithet must be read for the name to be whole, even though the
+        // qualifier stays in front of it
+        assertEquals(array('Odontostilbe stenodon', true), $read('Odontostilbe stenodon'));
     });
-    it('reads a name with both a qualifier and an act', function () use ($read) {
+    it('takes in a qualifier that follows the whole name', function () use ($read) {
+        assertEquals(array('Amanita muscaria cf.', false), $read('Amanita muscaria cf.'));
+    });
+    it('reads a name that is hedged and carries a statement', function () {
         $finder = new Finder();
-        $found = $finder->find('Amanita cf. muscaria sp. nov.');
-        assertEquals('Amanita muscaria', $found[0]['body']['value']);
-        assertEquals(array('sp. nov.'), $found[0]['nomenclature']['acts']);
-        assertEquals(array('cf.'), $found[0]['nomenclature']['qualifiers']);
+        $found = $finder->find('Amanita cf. muscaria sp. nov.')[0];
+        assertEquals('Amanita cf. muscaria', $found['body']['value']);
+        assertFalse($found['formal']);
+        assertEquals(array('sp. nov.'), $found['statements']['terms']);
     });
-    it('needs a capital before it and a lowercase word after', function () use ($read) {
-        // 'cf.' opening a sentence, or with no epithet behind it, is left be
-        assertEquals(array(null, array()), $read('cf. the account given above'));
-        assertEquals(array('Amanita muscaria', array()), $read('Amanita muscaria'));
-    });
-    it('leaves an ordinary name untouched', function () use ($read) {
-        assertEquals(array('Felis leo', array()), $read('Wow, Felis leo rocks'));
+    it('leaves an ordinary name formal', function () use ($read) {
+        assertEquals(array('Felis leo', true), $read('Wow, Felis leo rocks'));
     });
 });
 
@@ -1207,12 +1217,12 @@ describe('taxonomic judgments', function () {
         assertEquals(array(array(), array('syn. nov.', 'stat. nov.'), array()),
             $split('Lygus buxtoni syn. et stat. nov.', 13));
     });
-    it('colours a judgment apart from an act', function () {
+    it('colours a statement, whatever kind it is', function () {
         $finder = new Finder();
         assertTrue(strpos($finder->markText('Lygus buxtoni syn. n.'),
-            '<mark class="judgment">syn. n.</mark>') !== false);
+            '<mark class="statement">syn. n.</mark>') !== false);
         assertTrue(strpos($finder->markText('Deltonotus gen. nov.'),
-            '<mark class="nomenclature">gen. nov.</mark>') !== false);
+            '<mark class="statement">gen. nov.</mark>') !== false);
     });
 });
 
@@ -1388,11 +1398,11 @@ describe('#find (annotations)', function () use ($finder) {
         assertEquals('Pseudoneoborus samoanus', $quote['exact']);
         assertEquals('Pseudoneoborus samoanus', $annotation['body']['value']);
         // and the annotation carries its own
-        assertEquals(array('gen. nov.', 'sp. nov.'), $annotation['nomenclature']['acts']);
-        assertEquals('gen. n., sp. n.', $annotation['nomenclature']['verbatim']);
-        assertTrue($annotation['nomenclature']['start'] >= $position['end']);
-        assertEquals('gen. n., sp. n.', substr($text, $annotation['nomenclature']['start'],
-            $annotation['nomenclature']['end'] - $annotation['nomenclature']['start']));
+        assertEquals(array('gen. nov.', 'sp. nov.'), $annotation['statements']['terms']);
+        assertEquals('gen. n., sp. n.', $annotation['statements']['verbatim']);
+        assertTrue($annotation['statements']['start'] >= $position['end']);
+        assertEquals('gen. n., sp. n.', substr($text, $annotation['statements']['start'],
+            $annotation['statements']['end'] - $annotation['statements']['start']));
     });
     it('takes a configurable amount of context', function () {
         $finder = new Finder(null, 4);
@@ -1432,8 +1442,8 @@ describe('#find (annotations)', function () use ($finder) {
         // The original string keeps the qualifier, the interpreted one does not
         assertEquals('Hypogastrura (s. str.) simsi',
             $annotation['target']['selector'][0]['exact']);
-        assertEquals(array('sp. nov.'), $annotation['nomenclature']['acts']);
-        assertEquals('NEW SPECIES', $annotation['nomenclature']['verbatim']);
+        assertEquals(array('sp. nov.'), $annotation['statements']['terms']);
+        assertEquals('NEW SPECIES', $annotation['statements']['verbatim']);
         $position = $annotation['target']['selector'][1];
         assertEquals($annotation['target']['selector'][0]['exact'],
             substr($text, $position['start'], $position['end'] - $position['start']));
