@@ -93,6 +93,40 @@ judgment  synonymies    syn.
 judgment  stat          stat.      bare
 judgment  status        stat.
 
+# The standing of a name under the Code. None of these publishes anything -
+# they say a name already published is not available, or is illegitimate, or
+# is to be kept or set aside. Terms follow the GBIF nomenclatural status
+# vocabulary, <https://rs.gbif.org/vocabulary/gbif/nomenclatural_status.xml>.
+#
+# 'nom. nov.' is not here: a replacement name really is published, so it stays
+# an act. And 'dub' and 'conf' are left alone, being already spoken for by
+# species dubia and confer.
+
+judgment  nud           nom. nud.       bare
+judgment  nudum         nom. nud.       bare
+judgment  subnud        nom. subnud.    bare
+judgment  subnudum      nom. subnud.    bare
+judgment  illeg         nom. illeg.     bare
+judgment  illegit       nom. illeg.     bare
+judgment  illegitimum   nom. illeg.     bare
+judgment  inval         nom. inval.     bare
+judgment  invalidum     nom. inval.     bare
+judgment  cons          nom. cons.      bare
+judgment  conservandum  nom. cons.      bare
+judgment  rej           nom. rej.       bare
+judgment  rejic         nom. rej.       bare
+judgment  rejiciendum   nom. rej.       bare
+judgment  superfl       nom. superfl.   bare
+judgment  superfluum    nom. superfl.   bare
+judgment  oblit         nom. oblit.     bare
+judgment  oblitum       nom. oblit.     bare
+judgment  protect       nom. protect.   bare
+judgment  protectum     nom. protect.   bare
+judgment  provis        nom. provis.    bare
+judgment  provisorium   nom. provis.    bare
+# 'orth. var.' is left out: 'var' is an act in its own right, so the phrase
+# would be read twice, once whole and once as a stray 'var.'
+
 # ---------------------------------------------------------------- qualifiers
 # Open nomenclature: how sure the identification is, not that anything is new.
 # Sigovini, Keppel & Tagliapietra 2016, Open Nomenclature in the biodiversity

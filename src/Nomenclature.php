@@ -353,29 +353,26 @@ class Nomenclature
                 throw new \RuntimeException(sprintf(
                     '%s line %d: "%s" needs a word', $file, $number + 1, $type));
             }
-            if ($type === 'act') {
+            if ($type === 'act' || $type === 'judgment' || $type === 'qualifier') {
                 if (!isset($columns[2])) {
                     throw new \RuntimeException(sprintf(
-                        '%s line %d: act "%s" needs a canonical form',
-                        $file, $number + 1, $columns[1]));
+                        '%s line %d: %s "%s" needs a canonical form',
+                        $file, $number + 1, $type, $columns[1]));
                 }
-                $bare = isset($columns[3]) && strtolower($columns[3]) === 'bare';
-                self::add('act', $columns[1], $columns[2], $bare);
-            } elseif ($type === 'judgment') {
-                if (!isset($columns[2])) {
+                // The canonical form may be several words - 'nom. nud.' - so
+                // it is everything between the word and an optional trailing
+                // 'bare', rather than a single column.
+                $rest = array_slice($columns, 2);
+                $bare = strtolower(end($rest)) === 'bare';
+                if ($bare) {
+                    array_pop($rest);
+                }
+                if (!$rest) {
                     throw new \RuntimeException(sprintf(
-                        '%s line %d: judgment "%s" needs a canonical form',
-                        $file, $number + 1, $columns[1]));
+                        '%s line %d: %s "%s" needs a canonical form',
+                        $file, $number + 1, $type, $columns[1]));
                 }
-                $bare = isset($columns[3]) && strtolower($columns[3]) === 'bare';
-                self::add('judgment', $columns[1], $columns[2], $bare);
-            } elseif ($type === 'qualifier') {
-                if (!isset($columns[2])) {
-                    throw new \RuntimeException(sprintf(
-                        '%s line %d: qualifier "%s" needs a canonical form',
-                        $file, $number + 1, $columns[1]));
-                }
-                self::add('qualifier', $columns[1], $columns[2]);
+                self::add($type, $columns[1], implode(' ', $rest), $bare);
             } else {
                 self::add($type, $columns[1]);
             }

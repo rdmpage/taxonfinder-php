@@ -1179,6 +1179,36 @@ describe('a qualifier between genus and epithet', function () {
     });
 });
 
+describe('the standing of a name under the Code', function () {
+    $statement = function ($text) {
+        $finder = new Finder();
+        $found = $finder->find($text);
+        return (!$found || !isset($found[0]['statements']))
+            ? array() : $found[0]['statements']['terms'];
+    };
+    it('reads the nom. forms that say a name is not available', function () use ($statement) {
+        assertEquals(array('nom. nud.'), $statement('Lygus buxtoni nom. nud.'));
+        assertEquals(array('nom. illeg.'), $statement('Lygus buxtoni nom. illeg.'));
+        assertEquals(array('nom. inval.'), $statement('Lygus buxtoni nom. inval.'));
+    });
+    it('reads the ones that keep or set a name aside', function () use ($statement) {
+        assertEquals(array('nom. cons.'), $statement('Lygus buxtoni nom. cons.'));
+        assertEquals(array('nom. rej.'), $statement('Lygus buxtoni nom. rej.'));
+        assertEquals(array('nom. superfl.'), $statement('Lygus buxtoni nom. superfl.'));
+    });
+    it('leaves nom. nov. an act, since a name really is published', function () use ($statement) {
+        assertEquals(array('nom. nov.'), $statement('Lygus buxtoni nom. nov.'));
+    });
+    it('keeps the name whole', function () {
+        // 'rej' was an epithet in species.txt, so the name-finder used to
+        // swallow the annotation: 'Lygus buxtoni nom. rej'
+        $finder = new Finder();
+        $found = $finder->find('Lygus buxtoni nom. rej.')[0];
+        assertEquals('Lygus buxtoni', $found['body']['value']);
+        assertTrue($found['formal']);
+    });
+});
+
 describe('taxonomic judgments', function () {
     $split = function ($text, $end) {
         $found = Taxonfinder\Nomenclature::detect($text, $end);
@@ -1322,14 +1352,15 @@ describe('the annotation vocabulary', function () {
             Taxonfinder\Nomenclature::detect('Felis leo Brown et al., 1980. NEW SYNONYMY', 9)['judgments']);
     });
     it('takes additions at runtime', function () use ($acts) {
-        assertNull($acts('Felis leo| nudum'));
-        Taxonfinder\Nomenclature::add('act', 'nudum', 'nom. nud.', true);
+        // a word the shipped vocabulary does not hold
+        assertNull($acts('Felis leo| zzznovelty'));
+        Taxonfinder\Nomenclature::add('act', 'zzznovelty', 'zzz.', true);
         // standing alone, so it reports as a qualifier
-        assertEquals(array(), $acts('Felis leo| nudum'));
-        assertEquals(array('nom. nud.'),
-            Taxonfinder\Nomenclature::detect('Felis leo nudum', 9)['qualifiers']);
+        assertEquals(array(), $acts('Felis leo| zzznovelty'));
+        assertEquals(array('zzz.'),
+            Taxonfinder\Nomenclature::detect('Felis leo zzznovelty', 9)['qualifiers']);
         Taxonfinder\Nomenclature::reset();
-        assertNull($acts('Felis leo| nudum'));
+        assertNull($acts('Felis leo| zzznovelty'));
     });
     it('merges a vocabulary file', function () use ($acts) {
         $file = sys_get_temp_dir() . '/taxonfinder-annotations-' . getmypid() . '.txt';
