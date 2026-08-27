@@ -8,8 +8,8 @@
  * A genus in a section heading is carried down to the bare epithets beneath
  * it, which is how keys are set - --no-carry-over turns that off.
  *
- * --acts=FILE also writes the names carrying a nomenclatural act as a TSV of
- * PageID, name and act.
+ * --statements=FILE also writes the names something is said about, as a TSV of
+ * PageID, name, statement and identifier.
  *
  * The names are found in the item as a whole, not page by page, because that
  * is what lets an abbreviated genus reach back to where it was spelled out -
@@ -64,14 +64,14 @@ $pagesFile = null;
 $actsFile = null;
 $context = 32;
 $carryOver = true;
-$qualifiers = false;
+$publishedOnly = false;
 foreach (array_slice($argv, 1) as $argument) {
     if (preg_match('/^--pages=(.+)$/', $argument, $match)) {
         $pagesFile = $match[1];
-    } elseif (preg_match('/^--acts=(.+)$/', $argument, $match)) {
+    } elseif (preg_match('/^--statements=(.+)$/', $argument, $match)) {
         $actsFile = $match[1];
-    } elseif ($argument === '--qualifiers') {
-        $qualifiers = true;
+    } elseif ($argument === '--published-only') {
+        $publishedOnly = true;
     } elseif (preg_match('/^--context=(\d+)$/', $argument, $match)) {
         $context = (int) $match[1];
     } elseif ($argument === '--no-carry-over') {
@@ -81,8 +81,8 @@ foreach (array_slice($argv, 1) as $argument) {
     }
 }
 if ($file === null || $pagesFile === null) {
-    fwrite(STDERR, "Usage: bhl-annotate.php <item text> --pages=FILE [--acts=FILE]\n"
-        . "                        [--qualifiers] [--context=N] [--no-carry-over]\n");
+    fwrite(STDERR, "Usage: bhl-annotate.php <item text> --pages=FILE [--statements=FILE]\n"
+        . "                        [--published-only] [--context=N] [--no-carry-over]\n");
     exit(1);
 }
 
@@ -146,7 +146,7 @@ foreach ($finder->find($text) as $annotation) {
 }
 
 if ($actsFile !== null) {
-    writeActs($actsFile, $annotations, $qualifiers);
+    writeStatements($actsFile, $annotations, $publishedOnly);
 }
 
 $flags = JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
@@ -171,12 +171,14 @@ if ($strayed) {
 }
 
 /**
- * The forms that publish a name.
+ * The forms that publish a name, for --published-only.
  *
- * This list is what "a first occurrence" means, and it is written out here
- * rather than left implicit in the parser so that it can be argued with. A
- * statement not on it says something about a name published elsewhere - that
- * it is a synonym, that it is invalid - and belongs to a different question.
+ * Not the default. Every statement is worth a row, because the table is a
+ * list of pages that say something about a name and a synonymy or a
+ * restoration says as much as a description does. This list is here for the
+ * narrower question - which pages publish a name for the first time - and is
+ * written out rather than left implicit in the parser so that it can be
+ * argued with.
  */
 function publishingForms()
 {
@@ -207,18 +209,17 @@ function identifierFor(array $annotation)
 }
 
 /**
- * The names carrying a statement, as PageID, name, statement and the registry
- * identifier printed under it.
+ * The names something is said about, as PageID, name, statement and the
+ * registry identifier printed under it.
  *
- * One row per statement, so the column holds a single value and can be
- * grouped on: a genus and its type species published together carry
- * 'gen. nov.' and 'sp. nov.' and take a row each.
- *
- * Only the statements that publish a name, by default. --qualifiers writes
- * every statement, which is what you want to ask a different question of the
- * same text - which pages say anything at all about a name.
+ * Every statement, one row each, so the column holds a single value and can
+ * be grouped on: a genus and its type species published together carry
+ * 'gen. nov.' and 'sp. nov.' and take a row apiece. A synonymy, a rank
+ * change, a name declared unavailable - all of them make a page worth
+ * finding again, which is what this table is for. --published-only narrows it
+ * to the statements that put a name into the world.
  */
-function writeActs($path, array $annotations, $qualifiers)
+function writeStatements($path, array $annotations, $publishedOnly)
 {
     $handle = fopen($path, 'w');
     if ($handle === false) {
@@ -233,7 +234,7 @@ function writeActs($path, array $annotations, $qualifiers)
             continue;
         }
         foreach ($annotation['statements']['terms'] as $term) {
-            if (!$qualifiers && !isset($publishing[$term])) {
+            if ($publishedOnly && !isset($publishing[$term])) {
                 continue;
             }
             fwrite($handle, implode("\t", array(
