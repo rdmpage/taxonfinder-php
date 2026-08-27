@@ -61,6 +61,12 @@ class Nomenclature
     private static $judgmentForms = array();
 
     /**
+     * @var array words meaning "restored" - 'stat. rev.' brings a name back
+     * from synonymy. They modify the act word before them, as 'nov.' does.
+     */
+    private static $revivedMarkers = array();
+
+    /**
      * Acts that cannot be new, so a 'nov.' shared across a run never reaches
      * them. These say how sure the identification is, not what is being
      * published, and 'cf. nov.' is not a thing.
@@ -106,6 +112,12 @@ class Nomenclature
                     $used[] = $i;
                     $used[] = $i + 1;
                     $i++;
+                } elseif ($next !== null && self::isRevivedMarker($next['word'])) {
+                    // 'stat. rev.', 'comb. rev.' - a name brought back
+                    $acts[] = $canonical . ' rev.';
+                    $used[] = $i;
+                    $used[] = $i + 1;
+                    $i++;
                 } elseif ($mayStandAlone) {
                     $acts[] = $canonical;
                     $used[] = $i;
@@ -147,6 +159,11 @@ class Nomenclature
         //   qualifiers  how sure the identification was - 'Nucula sp.'
         $announced = array();
         foreach ($acts as $act) {
+            if (substr($act, -5) === ' rev.') {
+                // restoring a name is always a view of one already published
+                $judgments[] = $act;
+                continue;
+            }
             $base = substr($act, -5) === ' nov.' ? substr($act, 0, -5) : $act;
             if (isset(self::$judgmentForms[$base])) {
                 $judgments[] = $act;
@@ -277,8 +294,8 @@ class Nomenclature
      *   Nomenclature::add('new', 'novissima');
      *   Nomenclature::add('cite', 'apud');
      *
-     * @param string      $type      'new', 'act', 'cite', 'join', 'qualifier'
-     *                               or 'judgment'
+     * @param string      $type      'new', 'revived', 'act', 'cite', 'join',
+     *                               'qualifier' or 'judgment'
      * @param string      $word
      * @param string|null $canonical how an act is reported; required for acts
      * @param bool        $mayStandAlone may an act appear without a 'new' word
@@ -293,6 +310,9 @@ class Nomenclature
         switch (strtolower($type)) {
             case 'new':
                 self::$newMarkers[$word] = true;
+                break;
+            case 'revived':
+                self::$revivedMarkers[$word] = true;
                 break;
             case 'act':
                 if ($canonical === null) {
@@ -336,6 +356,7 @@ class Nomenclature
         self::$joinWords = array();
         self::$qualifiers = array();
         self::$judgmentForms = array();
+        self::$revivedMarkers = array();
     }
 
     private static function readFile($file)
@@ -382,6 +403,18 @@ class Nomenclature
                 self::add($type, $columns[1]);
             }
         }
+    }
+
+    /**
+     * Is this a word meaning restored?
+     *
+     * 'stat. rev.' says a name treated as a synonym is brought back to
+     * standing. Nothing is published - the name was published long ago by
+     * somebody else - so whatever it attaches to is a judgment.
+     */
+    private static function isRevivedMarker($word)
+    {
+        return isset(self::$revivedMarkers[strtolower(rtrim($word, '.'))]);
     }
 
     /** Is this the 'new' marker? A bare 'n' has to be lowercase. */
@@ -436,7 +469,8 @@ class Nomenclature
             $lower = strtolower($word);
             if ((isset(self::$acts[$lower]) && self::actNotAnInitial($matches[0], $index))
                 || isset(self::$qualifiers[$lower])
-                || self::isNewMarker($word)) {
+                || self::isNewMarker($word)
+                || self::isRevivedMarker($word)) {
                 if ($firstAct === null) {
                     $firstAct = $position;
                 }

@@ -1179,6 +1179,32 @@ describe('a qualifier between genus and epithet', function () {
     });
 });
 
+describe('a name brought back', function () {
+    $statement = function ($text) {
+        $finder = new Finder();
+        $found = $finder->find($text);
+        return (!$found || !isset($found[0]['statements']))
+            ? array() : $found[0]['statements']['terms'];
+    };
+    it('reads stat. rev. and its kin', function () use ($statement) {
+        assertEquals(array('stat. rev.'), $statement('Lygus buxtoni stat. rev.'));
+        assertEquals(array('comb. rev.'), $statement('Lygus buxtoni comb. rev.'));
+        assertEquals(array('syn. rev.'), $statement('Lygus buxtoni syn. rev.'));
+    });
+    it('reads one behind an author citation', function () use ($statement) {
+        // from page 61847878 of item 310707
+        assertEquals(array('stat. rev.'),
+            $statement('Theretra lifuensis Rothschild, 1894, stat. rev.'));
+    });
+    it('leaves the new-name acts alone', function () use ($statement) {
+        assertEquals(array('stat. nov.'), $statement('Lygus buxtoni stat. nov.'));
+        assertEquals(array('sp. nov.'), $statement('Lygus buxtoni sp. nov.'));
+    });
+    it('will not read a bare rev. as anything', function () use ($statement) {
+        assertEquals(array(), $statement('Amanita muscaria rev.'));
+    });
+});
+
 describe('the standing of a name under the Code', function () {
     $statement = function ($text) {
         $finder = new Finder();

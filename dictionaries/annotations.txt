@@ -24,6 +24,17 @@ new   novus
 new   n
 new   new
 
+# ---------------------------------------------------------------- revived
+# Words meaning restored. They modify the act word before them, the way a
+# "new" word does: 'stat. rev.' brings a name back from synonymy, 'comb. rev.'
+# a combination. Nothing is published either way - the name was published long
+# ago by somebody else - so anything ending 'rev.' is reported as a judgment.
+
+revived  rev
+revived  revalidatus
+revived  reviviscens
+revived  restored
+
 # ---------------------------------------------------------------- acts
 # Abbreviated. These stand on their own: "Amanita sp." is an indeterminate
 # species, not a new one, and is worth reporting as such.
