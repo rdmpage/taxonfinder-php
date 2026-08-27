@@ -203,7 +203,9 @@ function identifierFor(array $annotation)
  * beside a "new" word is an act and goes in .acts, and what stood on its own
  * is an open nomenclature qualifier and goes in .qualifiers - 'Cicindela, sp.'
  * says the species was not identified and announces nothing. --qualifiers
- * puts the second kind in as well.
+ * puts them in as well, along with the taxonomic judgments - a synonymy or a
+ * rank change speaks of names published elsewhere and puts none into the
+ * world, so neither belongs in a record of first occurrences.
  */
 function writeActs($path, array $annotations, $qualifiers)
 {
@@ -219,8 +221,12 @@ function writeActs($path, array $annotations, $qualifiers)
             continue;
         }
         $terms = $annotation['nomenclature']['acts'];
-        if ($qualifiers && isset($annotation['nomenclature']['qualifiers'])) {
-            $terms = array_merge($terms, $annotation['nomenclature']['qualifiers']);
+        if ($qualifiers) {
+            foreach (array('judgments', 'qualifiers') as $other) {
+                if (isset($annotation['nomenclature'][$other])) {
+                    $terms = array_merge($terms, $annotation['nomenclature'][$other]);
+                }
+            }
         }
         foreach ($terms as $act) {
             fwrite($handle, implode("\t", array(

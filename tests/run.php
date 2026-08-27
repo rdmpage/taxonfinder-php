@@ -791,7 +791,8 @@ describe('#markText', function () use ($finder) {
     it('wraps found names in <mark>, inside a plain <html> element', function () use ($finder) {
         assertEquals(
             "<html>\n<meta charset=\"utf-8\">\n"
-            . "<style>mark.nomenclature { background: pink }</style>\n"
+            . "<style>mark.nomenclature { background: pink }"
+            . " mark.judgment { background: paleturquoise }</style>\n"
             . "Wow, <mark>Felis leo</mark> rocks\n</html>\n",
             $finder->markText('Wow, Felis leo rocks')
         );
@@ -799,7 +800,8 @@ describe('#markText', function () use ($finder) {
     it('ends each line with <br>', function () use ($finder) {
         assertEquals(
             "<html>\n<meta charset=\"utf-8\">\n"
-            . "<style>mark.nomenclature { background: pink }</style>\n"
+            . "<style>mark.nomenclature { background: pink }"
+            . " mark.judgment { background: paleturquoise }</style>\n"
             . "<mark>Felis leo</mark><br>\n<mark>Amanita muscaria</mark>\n</html>\n",
             $finder->markText("Felis leo\nAmanita muscaria")
         );
@@ -807,7 +809,8 @@ describe('#markText', function () use ($finder) {
     it('reads a carriage return as the end of a line too', function () use ($finder) {
         assertEquals(
             "<html>\n<meta charset=\"utf-8\">\n"
-            . "<style>mark.nomenclature { background: pink }</style>\n"
+            . "<style>mark.nomenclature { background: pink }"
+            . " mark.judgment { background: paleturquoise }</style>\n"
             . "a<br>\nb<br>\nc\n</html>\n",
             $finder->markText("a\r\nb\rc")
         );
@@ -815,7 +818,8 @@ describe('#markText', function () use ($finder) {
     it('escapes markup in the source text', function () use ($finder) {
         assertEquals(
             "<html>\n<meta charset=\"utf-8\">\n"
-            . "<style>mark.nomenclature { background: pink }</style>\n"
+            . "<style>mark.nomenclature { background: pink }"
+            . " mark.judgment { background: paleturquoise }</style>\n"
             . "&lt;b&gt; &amp; <mark>Felis leo</mark>\n</html>\n",
             $finder->markText('<b> & Felis leo')
         );
@@ -823,7 +827,8 @@ describe('#markText', function () use ($finder) {
     it('leaves text without names alone', function () use ($finder) {
         assertEquals(
             "<html>\n<meta charset=\"utf-8\">\n"
-            . "<style>mark.nomenclature { background: pink }</style>\n"
+            . "<style>mark.nomenclature { background: pink }"
+            . " mark.judgment { background: paleturquoise }</style>\n"
             . "nothing here\n</html>\n",
             $finder->markText('nothing here')
         );
@@ -831,7 +836,8 @@ describe('#markText', function () use ($finder) {
     it('marks the nomenclatural annotation after a name', function () use ($finder) {
         assertEquals(
             "<html>\n<meta charset=\"utf-8\">\n"
-            . "<style>mark.nomenclature { background: pink }</style>\n"
+            . "<style>mark.nomenclature { background: pink }"
+            . " mark.judgment { background: paleturquoise }</style>\n"
             . "<mark>Deltonotus</mark> <mark class=\"nomenclature\">gen. nov.</mark>\n</html>\n",
             $finder->markText('Deltonotus gen. nov.')
         );
@@ -860,6 +866,13 @@ describe('Nomenclature::detect', function () {
         $found = Taxonfinder\Nomenclature::detect($text, $end);
         return $found === null ? null : $found['acts'];
     };
+    /** The taxonomic judgments following $name, if any. */
+    $judgments = function ($text) {
+        $end = strpos($text, '|');
+        $text = str_replace('|', '', $text);
+        $found = Taxonfinder\Nomenclature::detect($text, $end);
+        return $found === null ? null : $found['judgments'];
+    };
     /** The open nomenclature qualifiers following $name, if any. */
     $quals = function ($text) {
         $end = strpos($text, '|');
@@ -867,14 +880,19 @@ describe('Nomenclature::detect', function () {
         $found = Taxonfinder\Nomenclature::detect($text, $end);
         return $found === null ? null : $found['qualifiers'];
     };
-    it('reads the common new-name annotations', function () use ($acts) {
+    it('reads the common new-name annotations', function () use ($acts, $judgments) {
         assertEquals(array('sp. nov.'), $acts('Lygus buxtoni|, sp. n. Fig. 3'));
         assertEquals(array('sp. nov.'), $acts('Lygus buxtoni|, sp. nov.'));
         assertEquals(array('sp. nov.'), $acts('Lygus buxtoni| n. sp.'));
         assertEquals(array('gen. nov.'), $acts('Pseudoneoborus| gen. nov.'));
         assertEquals(array('comb. nov.'), $acts('Lygus buxtoni| comb. nov.'));
-        assertEquals(array('syn. nov.'), $acts('Lygus buxtoni| syn. nov.'));
-        assertEquals(array('stat. nov.'), $acts('Lygus buxtoni| stat. nov.'));
+        // a synonymy takes a view of names already published, so it is a
+        // judgment rather than an act
+        assertEquals(array(), $acts('Lygus buxtoni| syn. nov.'));
+        // a rank change moves a name already published, so it is a judgment
+        assertEquals(array(), $acts('Lygus buxtoni| stat. nov.'));
+        assertEquals(array('stat. nov.'), $judgments('Lygus buxtoni| stat. nov.'));
+        assertEquals(array('syn. nov.'), $judgments('Lygus buxtoni| syn. nov.'));
         assertEquals(array('nom. nov.'), $acts('Lygus buxtoni| nom. nov.'));
         assertEquals(array('subsp. nov.'), $acts('Lygus buxtoni| ssp. nov.'));
     });
@@ -903,25 +921,25 @@ describe('Nomenclature::detect', function () {
         assertEquals('gen. n., sp. n.',
             substr($text, $found['start'], $found['end'] - $found['start']));
     });
-    it('reads annotations spelled out in words', function () use ($acts) {
+    it('reads annotations spelled out in words', function () use ($acts, $judgments) {
         assertEquals(array('sp. nov.'), $acts('Hypogastrura simsi| NEW SPECIES'));
         assertEquals(array('sp. nov.'), $acts('Hypogastrura simsi| new species'));
-        assertEquals(array('syn. nov.'), $acts('Hypogastrura indiana| NEW SYNONYM.'));
+        assertEquals(array('syn. nov.'), $judgments('Hypogastrura indiana| NEW SYNONYM.'));
         assertEquals(array('comb. nov.'), $acts('Hypogastrura indiana| new combination'));
-        assertEquals(array('stat. nov.'), $acts('Hypogastrura indiana| NEW STATUS'));
+        assertEquals(array('stat. nov.'), $judgments('Hypogastrura indiana| NEW STATUS'));
         assertEquals(array('gen. nov.'), $acts('Pseudoneoborus| NEW GENUS'));
     });
-    it('reaches across an author citation', function () use ($acts) {
+    it('reaches across an author citation', function () use ($acts, $judgments) {
         // From Entomological News: the annotation sits after the citation
         assertEquals(array('syn. nov.'),
-            $acts('Alabameubria starki| Brown, 1980:188. NEW SYNONYMY'));
+            $judgments('Alabameubria starki| Brown, 1980:188. NEW SYNONYMY'));
         assertEquals(array('syn. nov.'),
-            $acts("Alabameubria starki| Brown, 1980:188. NEW SYNONYMY\nThe following"));
-        assertEquals(array('syn. nov.'), $acts('Felis leo| Smith, 1900, syn. nov.'));
+            $judgments("Alabameubria starki| Brown, 1980:188. NEW SYNONYMY\nThe following"));
+        assertEquals(array('syn. nov.'), $judgments('Felis leo| Smith, 1900, syn. nov.'));
         assertEquals(array('comb. nov.'),
             $acts('Amanita muscaria| (Fr.) Lam., 1783. NEW COMBINATION'));
         assertEquals(array('syn. nov.'),
-            $acts('Felis leo| Guerin-Meneville and Horn, 1861:531. NEW SYNONYMY'));
+            $judgments('Felis leo| Guerin-Meneville and Horn, 1861:531. NEW SYNONYMY'));
     });
     it('does not reach across ordinary prose', function () use ($acts) {
         // 'by original designation' is not a citation, and this NEW SYNONYMY
@@ -1114,6 +1132,53 @@ describe('an act read against its name', function () {
     });
 });
 
+describe('taxonomic judgments', function () {
+    $split = function ($text, $end) {
+        $found = Taxonfinder\Nomenclature::detect($text, $end);
+        return $found === null
+            ? array(array(), array(), array())
+            : array($found['acts'], $found['judgments'], $found['qualifiers']);
+    };
+    it('reads a synonymy as a judgment, not an act', function () use ($split) {
+        // it sinks a name published elsewhere; nothing new is published
+        assertEquals(array(array(), array('syn. nov.'), array()),
+            $split('Lygus buxtoni syn. n.', 13));
+    });
+    it('reads a rank change the same way', function () use ($split) {
+        assertEquals(array(array(), array('stat. nov.'), array()),
+            $split('Lygus buxtoni stat. nov.', 13));
+    });
+    it('leaves the acts alone', function () use ($split) {
+        // these do put something into the world
+        assertEquals(array(array('comb. nov.'), array(), array()),
+            $split('Lygus buxtoni comb. nov.', 13));
+        assertEquals(array(array('nom. nov.'), array(), array()),
+            $split('Lygus buxtoni nom. nov.', 13));
+        assertEquals(array(array('sp. nov.'), array(), array()),
+            $split('Lygus buxtoni sp. nov.', 13));
+    });
+    it('reads a bare synonymy too', function () use ($split) {
+        assertEquals(array(array(), array('syn.'), array()),
+            $split('Lygus buxtoni syn.', 13));
+    });
+    it('reads one spelled out, and across a citation', function () use ($split) {
+        assertEquals(array(array(), array('syn. nov.'), array()),
+            $split('Alabameubria starki Brown, 1980:188. NEW SYNONYMY', 19));
+    });
+    it('shares a marker along a run like an act does', function () use ($split) {
+        // 'syn. et stat. nov.' - one marker, both judgments
+        assertEquals(array(array(), array('syn. nov.', 'stat. nov.'), array()),
+            $split('Lygus buxtoni syn. et stat. nov.', 13));
+    });
+    it('colours a judgment apart from an act', function () {
+        $finder = new Finder();
+        assertTrue(strpos($finder->markText('Lygus buxtoni syn. n.'),
+            '<mark class="judgment">syn. n.</mark>') !== false);
+        assertTrue(strpos($finder->markText('Deltonotus gen. nov.'),
+            '<mark class="nomenclature">gen. nov.</mark>') !== false);
+    });
+});
+
 describe('open nomenclature qualifiers', function () {
     $of = function ($text, $end) {
         $found = Taxonfinder\Nomenclature::detect($text, $end);
@@ -1206,7 +1271,8 @@ describe('the annotation vocabulary', function () {
         // One entry from each section of the file: an act, a new marker
         // reached through a citation, and a citation word
         assertEquals(array('sp. nov.'), $acts('Felis leo| sp. nov.'));
-        assertEquals(array('syn. nov.'), $acts('Felis leo| Brown et al., 1980. NEW SYNONYMY'));
+        assertEquals(array('syn. nov.'),
+            Taxonfinder\Nomenclature::detect('Felis leo Brown et al., 1980. NEW SYNONYMY', 9)['judgments']);
     });
     it('takes additions at runtime', function () use ($acts) {
         assertNull($acts('Felis leo| nudum'));

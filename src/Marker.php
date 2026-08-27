@@ -31,7 +31,8 @@ class Marker
     private $annotator;
 
     /** The one style rule, so the act reads as an aside beside the name. */
-    const STYLE = '<style>mark.nomenclature { background: pink }</style>';
+    const STYLE = '<style>mark.nomenclature { background: pink }'
+        . ' mark.judgment { background: paleturquoise }</style>';
 
     public function __construct(?Annotator $annotator = null)
     {
@@ -52,7 +53,7 @@ class Marker
         $position = 0;
         foreach ($spans as $span) {
             list($start, $end, $kind) = $span;
-            $open = $kind === 'nomenclature' ? '<mark class="nomenclature">' : '<mark>';
+            $open = $kind === 'name' ? '<mark>' : '<mark class="' . $kind . '">';
             $marked .= $this->render(substr($text, $position, $start - $position), $isHtml);
             $marked .= $open . $this->render(substr($text, $start, $end - $start), $isHtml) . '</mark>';
             $position = $end;
@@ -80,10 +81,12 @@ class Marker
         foreach ($this->annotator->annotate($text, $isHtml) as $annotation) {
             $position = $annotation['target']['selector'][1];
             $spans[] = array($position['start'], $position['end'], 'name');
-            if (isset($annotation['nomenclature'])
-                && self::announcesSomethingNew($annotation['nomenclature'])) {
-                $spans[] = array($annotation['nomenclature']['start'],
-                    $annotation['nomenclature']['end'], 'nomenclature');
+            if (isset($annotation['nomenclature'])) {
+                $kind = self::kindOf($annotation['nomenclature']);
+                if ($kind !== null) {
+                    $spans[] = array($annotation['nomenclature']['start'],
+                        $annotation['nomenclature']['end'], $kind);
+                }
             }
         }
         foreach ($spans as $i => $span) {
@@ -113,7 +116,8 @@ class Marker
     }
 
     /**
-     * Is this a nomenclatural act, rather than an open nomenclature qualifier?
+     * Which of the three an annotation is, or null where it is not worth
+     * colouring.
      *
      * Nomenclature keeps the two apart: .acts holds what was read beside a
      * "new" word, .qualifiers what stood on its own. Only the first is an
@@ -122,9 +126,17 @@ class Marker
      * the rank of a name in a list. Neither announces anything, and marking
      * them alongside 'gen. nov.' claims more than the text says.
      */
-    private static function announcesSomethingNew(array $nomenclature)
+    private static function kindOf(array $nomenclature)
     {
-        return !empty($nomenclature['acts']);
+        if (!empty($nomenclature['acts'])) {
+            return 'nomenclature';
+        }
+        if (!empty($nomenclature['judgments'])) {
+            return 'judgment';
+        }
+        // A qualifier says how sure the identification was and announces
+        // nothing, so it is left uncoloured.
+        return null;
     }
 
     /** A run of source text as it should appear in the output. */

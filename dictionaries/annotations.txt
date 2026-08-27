@@ -37,8 +37,6 @@ act   species     sp.
 act   gen         gen.       bare
 act   genus       gen.
 act   comb        comb.      bare
-act   syn         syn.       bare
-act   stat        stat.      bare
 # Not standing alone: 'Nom.' abbreviates Nomenclator in botanical citations -
 # 'Bauhinia cheilantha (Bongard) Steudel, Nom. Bot.' - and a bare nom.
 # announces nothing anyway. The real ones (nom. nud., nom. illeg., nom. cons.)
@@ -70,11 +68,6 @@ act   g           gen.
 # none of them stands alone - "a synonym of harveyi" is not an act.
 act   combination   comb.
 act   combinations  comb.
-act   synonym       syn.
-act   synonyms      syn.
-act   synonymy      syn.
-act   synonymies    syn.
-act   status        stat.
 act   name          nom.
 act   names         nom.
 act   subspecies    subsp.
@@ -82,6 +75,23 @@ act   variety       var.
 act   varieties     var.
 act   family        fam.
 act   genera        gen.
+
+# ---------------------------------------------------------------- judgments
+# A view taken of names already published, rather than the publication of one.
+# 'syn. nov.' sinks a name into another and 'stat. nov.' moves one to another
+# rank; both speak of names established elsewhere, by somebody else, and
+# neither puts a new name into the world. Reported under nomenclature
+# .judgments, apart from .acts.
+#
+# Read exactly as an act is, so 'syn. n.' and 'NEW SYNONYMY' both work.
+
+judgment  syn           syn.       bare
+judgment  synonym       syn.
+judgment  synonyms      syn.
+judgment  synonymy      syn.
+judgment  synonymies    syn.
+judgment  stat          stat.      bare
+judgment  status        stat.
 
 # ---------------------------------------------------------------- qualifiers
 # Open nomenclature: how sure the identification is, not that anything is new.

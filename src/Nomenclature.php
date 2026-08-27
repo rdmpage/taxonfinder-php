@@ -55,6 +55,12 @@ class Nomenclature
     private static $qualifiers = array();
 
     /**
+     * @var array canonical forms that are a judgment about a name rather than
+     * the publication of one: 'syn.', 'stat.'
+     */
+    private static $judgmentForms = array();
+
+    /**
      * Acts that cannot be new, so a 'nov.' shared across a run never reaches
      * them. These say how sure the identification is, not what is being
      * published, and 'cf. nov.' is not a thing.
@@ -80,6 +86,7 @@ class Nomenclature
 
         $acts = array();
         $qualifiers = array();
+        $judgments = array();
         $used = array();
         $count = count($tokens);
         for ($i = 0; $i < $count; $i++) {
@@ -119,20 +126,26 @@ class Nomenclature
             }
         }
 
-        if (!$acts && !$qualifiers) {
+        if (!$acts && !$qualifiers && !$judgments) {
             return null;
         }
         // Sharing first: in 'gen. et sp. nov.' the 'gen.' stands alone until
         // the marker at the end of the run reaches it.
         $acts = self::shareNewness($acts);
 
-        // Then the split the paper draws. A binomen with 'sp. nov.' after it
-        // is a nomenclatural act; the same words with nothing announcing
-        // anything new are an open nomenclature qualifier - 'Nucula sp.' says
-        // the species was not identified, and claims nothing.
+        // Then the three ways an annotation can go.
+        //
+        //   acts        something is published - 'sp. nov.', 'comb. nov.'
+        //   judgments   a view taken of names already published - 'syn. nov.'
+        //               sinks one name into another, 'stat. nov.' moves one to
+        //               another rank. Neither publishes a name.
+        //   qualifiers  how sure the identification was - 'Nucula sp.'
         $announced = array();
         foreach ($acts as $act) {
-            if (substr($act, -4) === 'nov.') {
+            $base = substr($act, -5) === ' nov.' ? substr($act, 0, -5) : $act;
+            if (isset(self::$judgmentForms[$base])) {
+                $judgments[] = $act;
+            } elseif (substr($act, -4) === 'nov.') {
                 $announced[] = $act;
             } else {
                 $qualifiers[] = $act;
@@ -164,7 +177,7 @@ class Nomenclature
             // one found beyond an author citation is almost always a title
             // being read as an act: 'Fabr. Sp. Ins., 1781' is Species
             // Insectorum, 'Steudel, Nom. Bot.' the Nomenclator.
-            if (!self::announcesSomethingNew($acts)) {
+            if (!self::announcesSomethingNew($acts) && !$judgments) {
                 return null;
             }
             if (!self::endsTheLine($text, $end) && !self::opensAStatement($text, $end)) {
@@ -175,6 +188,7 @@ class Nomenclature
         return array(
             'verbatim' => substr($text, $start, $end - $start),
             'acts' => $acts,
+            'judgments' => $judgments,
             'qualifiers' => $qualifiers,
             'start' => $start,
             'end' => $end,
@@ -258,7 +272,8 @@ class Nomenclature
      *   Nomenclature::add('new', 'novissima');
      *   Nomenclature::add('cite', 'apud');
      *
-     * @param string      $type      'new', 'act', 'cite', 'join' or 'qualifier'
+     * @param string      $type      'new', 'act', 'cite', 'join', 'qualifier'
+     *                               or 'judgment'
      * @param string      $word
      * @param string|null $canonical how an act is reported; required for acts
      * @param bool        $mayStandAlone may an act appear without a 'new' word
@@ -292,6 +307,15 @@ class Nomenclature
                 }
                 self::$qualifiers[$word] = $canonical;
                 break;
+            case 'judgment':
+                if ($canonical === null) {
+                    throw new \InvalidArgumentException("A judgment needs a canonical form: $word");
+                }
+                // Read exactly as an act is, so it may take a "new" word and
+                // share one along a run; told apart only when reporting.
+                self::$acts[$word] = array($canonical, (bool) $mayStandAlone);
+                self::$judgmentForms[$canonical] = true;
+                break;
             default:
                 throw new \InvalidArgumentException("Unknown annotation type: $type");
         }
@@ -306,6 +330,7 @@ class Nomenclature
         self::$citationWords = array();
         self::$joinWords = array();
         self::$qualifiers = array();
+        self::$judgmentForms = array();
     }
 
     private static function readFile($file)
@@ -336,6 +361,14 @@ class Nomenclature
                 }
                 $bare = isset($columns[3]) && strtolower($columns[3]) === 'bare';
                 self::add('act', $columns[1], $columns[2], $bare);
+            } elseif ($type === 'judgment') {
+                if (!isset($columns[2])) {
+                    throw new \RuntimeException(sprintf(
+                        '%s line %d: judgment "%s" needs a canonical form',
+                        $file, $number + 1, $columns[1]));
+                }
+                $bare = isset($columns[3]) && strtolower($columns[3]) === 'bare';
+                self::add('judgment', $columns[1], $columns[2], $bare);
             } elseif ($type === 'qualifier') {
                 if (!isset($columns[2])) {
                     throw new \RuntimeException(sprintf(
