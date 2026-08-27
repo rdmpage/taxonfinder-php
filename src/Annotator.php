@@ -195,6 +195,25 @@ class Annotator
             ),
         );
         $nomenclature = Nomenclature::detect($text, $end);
+
+        // A qualifier read through to reach the epithet - 'Odontostilbe cf.
+        // stenodon' - is inside the name rather than after it, so it is
+        // recovered from the span instead of from the text beyond it.
+        $inside = Nomenclature::readInterposed(substr($text, $start, $end - $start));
+        if ($inside !== null) {
+            if ($nomenclature === null) {
+                $nomenclature = array(
+                    'verbatim' => substr($text, $start + $inside['offset'], $inside['length']),
+                    'acts' => array(),
+                    'judgments' => array(),
+                    'qualifiers' => array(),
+                    'start' => $start + $inside['offset'],
+                    'end' => $start + $inside['offset'] + $inside['length'],
+                );
+            }
+            array_unshift($nomenclature['qualifiers'], $inside['canonical']);
+        }
+
         if ($nomenclature !== null) {
             $annotation['nomenclature'] = $nomenclature;
         }

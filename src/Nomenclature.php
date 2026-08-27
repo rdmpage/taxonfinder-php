@@ -626,6 +626,45 @@ class Nomenclature
         return $nomenclature;
     }
 
+    /**
+     * The qualifier standing inside a name, where one was read through.
+     *
+     * Utility::removeQualifiers drops 'cf.' from between a genus and its
+     * epithet so the binomen can be read whole, which would otherwise lose
+     * it. The word is still there in the text the name spans, so it is read
+     * back from that.
+     *
+     * @param string $span the text the name covers
+     * @return array|null array('canonical', 'offset', 'length')
+     */
+    public static function readInterposed($span)
+    {
+        self::load();
+        if (!preg_match_all('/[A-Za-z]+/', (string) $span, $matches, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+        foreach ($matches[0] as $index => $match) {
+            // not the first word of the name, nor the last
+            if ($index === 0 || $index === count($matches[0]) - 1) {
+                continue;
+            }
+            $word = strtolower($match[0]);
+            if (!isset(self::$qualifiers[$word])) {
+                continue;
+            }
+            $length = strlen($match[0]);
+            if (isset($span[$match[1] + $length]) && $span[$match[1] + $length] === '.') {
+                $length++;
+            }
+            return array(
+                'canonical' => self::$qualifiers[$word],
+                'offset' => $match[1],
+                'length' => $length,
+            );
+        }
+        return null;
+    }
+
     /** Did any of these acts come with a word meaning "new"? */
     private static function announcesSomethingNew(array $acts)
     {

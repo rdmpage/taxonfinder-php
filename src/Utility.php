@@ -166,6 +166,17 @@ class Utility
     );
 
     /**
+     * Open nomenclature qualifiers that stand between a genus and an epithet,
+     * where Sigovini et al. 2016 say they belong: 'Odontostilbe cf. stenodon',
+     * 'Bryconamericus aff. novae'. Left in place they end the name at the
+     * genus and the epithet is lost.
+     */
+    private static $interposed = array(
+        'cf' => true, 'cfr' => true, 'conf' => true, 'aff' => true,
+        'prox' => true, 'nr' => true, 'gr' => true,
+    );
+
+    /**
      * Drop qualifiers such as the '(s. str.)' in
      * 'Hypogastrura (s. str.) simsi', which otherwise cuts the name in two and
      * loses the species. A real subgenus, '(Felis)' in 'Felis (Felis) leo', is
@@ -185,9 +196,41 @@ class Utility
                 $i = $last;
                 continue;
             }
+            if (self::isInterposedQualifier($wordsWithOffsets, $i, $count, $finalWords)) {
+                continue;
+            }
             $finalWords[] = $wordsWithOffsets[$i];
         }
         return $finalWords;
+    }
+
+    /**
+     * Is this word a qualifier standing between a genus and its epithet?
+     *
+     * Only there. A capital before it and a lowercase word after it is what
+     * says so, and without both the word is left alone - 'cf.' opening a
+     * sentence, or following a whole name, is somebody else's business. The
+     * qualifier is not lost by being dropped here: it falls inside the span
+     * the finished name carries, and Annotator reads it back out.
+     */
+    private static function isInterposedQualifier(array $words, $index, $count, array $kept)
+    {
+        if (!$kept || !isset($words[$index]['word'])) {
+            return false;
+        }
+        $word = strtolower(self::clean($words[$index]['word']));
+        if (!isset(self::$interposed[$word])) {
+            return false;
+        }
+        $before = self::clean($kept[count($kept) - 1]['word']);
+        if ($before === '' || !preg_match('/^[A-Z]/', $before)) {
+            return false;
+        }
+        if (!isset($words[$index + 1]['word'])) {
+            return false;
+        }
+        $after = self::clean($words[$index + 1]['word']);
+        return $after !== '' && preg_match('/^[a-z]/', $after);
     }
 
     /**

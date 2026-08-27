@@ -1132,6 +1132,43 @@ describe('an act read against its name', function () {
     });
 });
 
+describe('a qualifier between genus and epithet', function () {
+    $read = function ($text) {
+        $finder = new Finder();
+        $found = $finder->find($text);
+        if (!$found) {
+            return array(null, array());
+        }
+        return array($found[0]['body']['value'],
+            isset($found[0]['nomenclature']) ? $found[0]['nomenclature']['qualifiers'] : array());
+    };
+    it('reads the epithet through the qualifier', function () use ($read) {
+        // where Sigovini et al. 2016 say the qualifier belongs
+        assertEquals(array('Odontostilbe stenodon', array('cf.')),
+            $read('Odontostilbe cf. stenodon'));
+        assertEquals(array('Pourtalesia alcocki', array('aff.')),
+            $read('Pourtalesia aff. alcocki'));
+    });
+    it('keeps a qualifier that follows the whole name', function () use ($read) {
+        assertEquals(array('Amanita muscaria', array('cf.')), $read('Amanita muscaria cf.'));
+    });
+    it('reads a name with both a qualifier and an act', function () use ($read) {
+        $finder = new Finder();
+        $found = $finder->find('Amanita cf. muscaria sp. nov.');
+        assertEquals('Amanita muscaria', $found[0]['body']['value']);
+        assertEquals(array('sp. nov.'), $found[0]['nomenclature']['acts']);
+        assertEquals(array('cf.'), $found[0]['nomenclature']['qualifiers']);
+    });
+    it('needs a capital before it and a lowercase word after', function () use ($read) {
+        // 'cf.' opening a sentence, or with no epithet behind it, is left be
+        assertEquals(array(null, array()), $read('cf. the account given above'));
+        assertEquals(array('Amanita muscaria', array()), $read('Amanita muscaria'));
+    });
+    it('leaves an ordinary name untouched', function () use ($read) {
+        assertEquals(array('Felis leo', array()), $read('Wow, Felis leo rocks'));
+    });
+});
+
 describe('taxonomic judgments', function () {
     $split = function ($text, $end) {
         $found = Taxonfinder\Nomenclature::detect($text, $end);
