@@ -95,6 +95,11 @@ class Nomenclature
 
             if (isset(self::$acts[$word])) {
                 list($canonical, $mayStandAlone) = self::$acts[$word];
+                // A canonical of more than one word may be triggered by its
+                // first: 'orth. var.' is matched on 'orth', and the 'var.'
+                // after it is the rest of the same phrase, not a second act.
+                $i = self::absorbRestOfPhrase($tokens, $i, $count, $word, $canonical, $used);
+                $next = isset($tokens[$i + 1]) ? $tokens[$i + 1] : null;
                 if ($next !== null && self::isNewMarker($next['word'])
                     && !isset(self::$neverNew[$canonical])) {
                     $acts[] = $canonical . ' nov.';
@@ -550,6 +555,41 @@ class Nomenclature
             }
         }
         return false;
+    }
+
+    /**
+     * Where a canonical form runs to several words and the word matched is
+     * not its last, take in the words that finish it.
+     *
+     * 'orth. var.' is triggered by 'orth' and finished by 'var', which is an
+     * act in its own right; read separately the phrase comes back twice, once
+     * whole and once as a stray 'var.'. ('nom. nud.' has the opposite shape -
+     * triggered by its last word - and needs none of this.)
+     *
+     * @return int the index to carry on from
+     */
+    private static function absorbRestOfPhrase(array $tokens, $i, $count, $word, $canonical, array &$used)
+    {
+        $parts = preg_split('/\s+/', trim($canonical));
+        if (count($parts) < 2) {
+            return $i;
+        }
+        $bare = array_map(function ($part) {
+            return strtolower(rtrim($part, '.'));
+        }, $parts);
+        $at = array_search($word, $bare, true);
+        if ($at === false || $at === count($bare) - 1) {
+            return $i;
+        }
+        for ($part = $at + 1; $part < count($bare); $part++) {
+            $ahead = $i + 1;
+            if ($ahead >= $count || strtolower($tokens[$ahead]['word']) !== $bare[$part]) {
+                break;
+            }
+            $used[] = $ahead;
+            $i = $ahead;
+        }
+        return $i;
     }
 
     /** Is the next word an act, or the marker that makes one? */

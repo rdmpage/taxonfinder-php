@@ -124,8 +124,8 @@ judgment  protect       nom. protect.   bare
 judgment  protectum     nom. protect.   bare
 judgment  provis        nom. provis.    bare
 judgment  provisorium   nom. provis.    bare
-# 'orth. var.' is left out: 'var' is an act in its own right, so the phrase
-# would be read twice, once whole and once as a stray 'var.'
+judgment  orth          orth. var.      bare
+judgment  orthographia  orth. var.      bare
 
 # ---------------------------------------------------------------- qualifiers
 # Open nomenclature: how sure the identification is, not that anything is new.
