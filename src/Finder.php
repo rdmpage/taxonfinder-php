@@ -17,6 +17,10 @@
  * find() returns annotation records; see Annotator for their shape. If you
  * want the bare name-and-offset pairs instead, Parser::findNamesAndOffsets()
  * is the level below.
+ *
+ * The offsets in those records are character offsets. If you are going to
+ * slice the text with substr() rather than mb_substr(), or hand the offsets to
+ * something else that counts bytes, use findWithByteOffsets() instead.
  */
 
 namespace Taxonfinder;
@@ -54,11 +58,24 @@ class Finder
      *
      * @param string $text
      * @param bool   $isHtml  true if $text is HTML rather than plain text
-     * @return array list of annotation records
+     * @return array list of annotation records, with character offsets
      */
     public function find($text, $isHtml = false)
     {
         return $this->annotator->annotate($text, $isHtml);
+    }
+
+    /**
+     * The same records with their offsets counted in bytes, for a caller that
+     * is going to reach back into the text with substr() and friends.
+     *
+     * @param string $text
+     * @param bool   $isHtml  true if $text is HTML rather than plain text
+     * @return array list of annotation records, with byte offsets
+     */
+    public function findWithByteOffsets($text, $isHtml = false)
+    {
+        return $this->annotator->annotateWithByteOffsets($text, $isHtml);
     }
 
     /**
@@ -111,6 +128,16 @@ class Finder
     public function setContextLength($contextLength)
     {
         $this->annotator->setContextLength($contextLength);
+        return $this;
+    }
+
+    /**
+     * Whether find() reports offsets in characters. On by default; turn it off
+     * to have find() report byte offsets, as findWithByteOffsets() does.
+     */
+    public function setCharacterOffsets($characterOffsets)
+    {
+        $this->annotator->setCharacterOffsets($characterOffsets);
         return $this;
     }
 

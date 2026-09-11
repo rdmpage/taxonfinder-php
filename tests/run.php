@@ -1510,6 +1510,67 @@ describe('#find (annotations)', function () use ($finder) {
     });
 });
 
+describe('character offsets', function () {
+    // The parser counts bytes, because PHP string functions do. What it
+    // reports has to be counted in characters, or an em dash earlier on the
+    // page pushes every offset after it out by two.
+    it('reports offsets in characters, not bytes', function () {
+        $finder = new Finder();
+        $text = "Tail length \xE2\x80\x94 see Felis leo";
+        $annotation = $finder->find($text)[0];
+        $position = $annotation['target']['selector'][1];
+        assertEquals('Felis leo', mb_substr($text, $position['start'],
+            $position['end'] - $position['start'], 'UTF-8'));
+        // and not the byte offset, which is two further along
+        assertEquals(18, $position['start']);
+        assertEquals(20, strpos($text, 'Felis leo'));
+    });
+    it('agrees with byte offsets when the text is all ASCII', function () {
+        $finder = new Finder();
+        $text = 'Wow, Felis leo rocks';
+        assertEquals($finder->findWithByteOffsets($text), $finder->find($text));
+    });
+    it('gives byte offsets from findWithByteOffsets', function () {
+        $finder = new Finder();
+        $text = "Tail length \xE2\x80\x94 see Felis leo";
+        $annotation = $finder->findWithByteOffsets($text)[0];
+        $position = $annotation['target']['selector'][1];
+        assertEquals('Felis leo', substr($text, $position['start'],
+            $position['end'] - $position['start']));
+    });
+    it('converts the spans on statements too', function () {
+        $finder = new Finder();
+        $text = "\xE2\x80\x94 15. Pseudoneoborus samoanus, gen. n., sp. n. x";
+        $annotation = $finder->find($text)[0];
+        assertEquals('gen. n., sp. n.', mb_substr($text,
+            $annotation['statements']['start'],
+            $annotation['statements']['end'] - $annotation['statements']['start'], 'UTF-8'));
+    });
+    it('converts the spans on identifiers too', function () {
+        $finder = new Finder();
+        $text = "\xE2\x80\x94 Proctoporus machupicchu sp. nov.\n"
+            . 'urn:lsid:zoobank.org:act:216381E4-4C4B-4C3C-99AE-0DCEFEC45352';
+        $annotation = $finder->find($text)[0];
+        $identifier = $annotation['identifiers'][0];
+        assertEquals($identifier['verbatim'], mb_substr($text, $identifier['start'],
+            $identifier['end'] - $identifier['start'], 'UTF-8'));
+    });
+    it('leaves offsets alone when the text is not valid UTF-8', function () {
+        $finder = new Finder();
+        // Latin-1, not UTF-8: characters cannot be counted, so bytes stand
+        $text = "Tail length \xB1 see Felis leo";
+        $annotation = $finder->find($text)[0];
+        $position = $annotation['target']['selector'][1];
+        assertEquals('Felis leo', substr($text, $position['start'],
+            $position['end'] - $position['start']));
+    });
+    it('still marks the right text when the page has multi-byte characters', function () {
+        $finder = new Finder();
+        $text = "Tail length \xE2\x80\x94 see Felis leo";
+        assertTrue(strpos($finder->markText($text), '<mark>Felis leo</mark>') !== false);
+    });
+});
+
 describe('#setCarryOverKeyGenus', function () {
     $names = function ($text) {
         $finder = new Finder();

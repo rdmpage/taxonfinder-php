@@ -67,8 +67,15 @@ One record per name found, loosely modelled on the
 | `body.value` | the **interpreted** name — capitalisation normalised, abbreviated genus expanded, trailing `sp. nov.` removed |
 | `target.selector[0].exact` | the **original** string, exactly as it appears in the text |
 | `target.selector[0].prefix` / `.suffix` | 32 bytes either side, so the name can be found again if the offsets go stale |
-| `target.selector[1].start` / `.end` | byte offsets, such that `substr($text, $start, $end - $start)` is `exact` |
+| `target.selector[1].start` / `.end` | character offsets, such that `mb_substr($text, $start, $end - $start)` is `exact` |
 | `nomenclature` | present only when an annotation follows the name — see below |
+
+Offsets are counted in **characters** (Unicode codepoints), not bytes, so
+`mb_substr()` is the one that reaches back into the text — and so that anything
+reading these records from another language, or matching them against another
+OCR of the same page, counts the same way. The parser works in bytes
+internally; `Finder::findWithByteOffsets()` returns the same records with the
+byte offsets, for a caller that is going to use `substr()`.
 
 The two selectors are the two ways of finding the same span, as the model
 intends: positions are fast but break when the OCR is re-run, the quote
@@ -318,11 +325,13 @@ Every name is classified individually, and anything not on the list below fails
 the run. The two implementations agree on every document; five kinds of difference are
 deliberate.
 
-**Offsets are byte offsets, not UTF-16 offsets.** For ASCII text the two are
-identical. For text containing an em dash or an accented letter they drift
-apart, because JavaScript counts UTF-16 code units. Byte offsets are what PHP's
-`substr()` wants. `tools/compare.php` converts between the two and checks they
-agree exactly.
+**Offsets are byte offsets, not UTF-16 offsets.** This comparison is made at
+the parser level, below the annotation records — `Parser::findNamesAndOffsets()`
+counts bytes, as PHP's `substr()` does, where JavaScript counts UTF-16 code
+units. For ASCII text the two are identical; for text containing an em dash or
+an accented letter they drift apart. `tools/compare.php` converts between the
+two and checks they agree exactly. (The records `Finder::find()` returns are
+converted to character offsets — see [The annotation record](#the-annotation-record).)
 
 **Names that run to the end of the text** get a real end offset. The JavaScript
 reads it off a sentinel that has no offset and returns `NaN`.

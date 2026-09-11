@@ -4,8 +4,14 @@
  *
  * Note on offsets: JavaScript string offsets are UTF-16 code units, PHP's are
  * bytes. For ASCII text the two agree exactly. For text with non-ASCII
- * characters the PHP offsets are byte offsets, which is what substr(),
+ * characters the offsets counted here are byte offsets, which is what substr(),
  * mb_substr(..., '8bit') and friends expect, so they stay usable in PHP.
+ *
+ * These are the library's *internal* offsets. Byte counting is safe throughout
+ * the parser - every delimiter it splits on is ASCII, and UTF-8 never puts an
+ * ASCII byte inside a multi-byte character, so nothing here can land mid
+ * character. It is not safe to *publish*, though, so Annotator converts to
+ * character offsets on the way out. See the note at the top of Annotator.
  */
 
 namespace Taxonfinder;

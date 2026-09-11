@@ -102,7 +102,9 @@ $unplaced = 0;
 $overrun = 0;
 $strayed = array();
 
-foreach ($finder->find($text) as $annotation) {
+// Byte offsets: the page table this places names into is written by
+// bhl-item.php, which measures the item text with strlen().
+foreach ($finder->findWithByteOffsets($text) as $annotation) {
     $selectors = $annotation['target']['selector'];
     $position = $selectors[1];
     $page = pageAt($pages, $position['start']);

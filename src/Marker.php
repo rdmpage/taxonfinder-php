@@ -78,7 +78,8 @@ class Marker
     {
         $length = strlen($text);
         $spans = array();
-        foreach ($this->annotator->annotate($text, $isHtml) as $annotation) {
+        // Byte offsets: the marked-up text is built with substr() below.
+        foreach ($this->annotator->annotateWithByteOffsets($text, $isHtml) as $annotation) {
             $position = $annotation['target']['selector'][1];
             $spans[] = array($position['start'], $position['end'],
                 empty($annotation['formal']) ? 'informal' : 'name');

@@ -21,6 +21,23 @@
  * string, exactly as it appears in the source, with enough surrounding text to
  * find it again if the offsets go stale. nomenclature is only present when an
  * annotation follows the name, and covers its own separate span.
+ *
+ * Note on offsets: every offset reported here - the TextPositionSelector, and
+ * the spans on statements and identifiers - is a *character* offset, counted
+ * in Unicode codepoints. The parser works in bytes internally, because PHP
+ * string functions do and because UTF-8 never puts an ASCII byte inside a
+ * multi-byte character, so none of the splitting it does can land mid
+ * character. But bytes are the wrong thing to publish: anything reading these
+ * records from another language, or against another OCR of the same page,
+ * counts characters. A page with a dozen em dashes on it is enough to put the
+ * two several characters apart, and every offset after the first one is then
+ * silently wrong.
+ *
+ * Character offsets also agree with node-taxonfinder, which reports UTF-16
+ * code units - the same number as codepoints for everything in the BMP.
+ *
+ * If you are slicing the source text in PHP with substr() and want the byte
+ * offsets back, use annotateWithByteOffsets() (Finder::findWithByteOffsets()).
  */
 
 namespace Taxonfinder;
@@ -35,6 +52,9 @@ class Annotator
 
     /** @var bool carry a section heading's genus down to bare epithets */
     private $carryOverKeyGenus = false;
+
+    /** @var bool report character offsets rather than PHP's byte offsets */
+    private $characterOffsets = true;
 
     public function __construct(?Parser $parser = null, $contextLength = 32)
     {
@@ -73,11 +93,46 @@ class Annotator
     }
 
     /**
+     * Whether annotate() reports offsets in characters. On by default; turn it
+     * off to get PHP's byte offsets, which is what substr() and the rest of
+     * the byte-based string functions want.
+     */
+    public function setCharacterOffsets($characterOffsets)
+    {
+        $this->characterOffsets = (bool) $characterOffsets;
+        return $this;
+    }
+
+    public function characterOffsets()
+    {
+        return $this->characterOffsets;
+    }
+
+    /**
+     * @param string $text
+     * @param bool   $isHtml
+     * @return array list of annotation records, with character offsets unless
+     *               setCharacterOffsets(false) has been called
+     */
+    public function annotate($text, $isHtml = false)
+    {
+        $text = (string) $text;
+        $annotations = $this->annotateWithByteOffsets($text, $isHtml);
+        if (!$this->characterOffsets) {
+            return $annotations;
+        }
+        return self::toCharacterOffsets($text, $annotations);
+    }
+
+    /**
+     * The same records, with offsets counted in bytes, so they line up with
+     * substr() and the rest of PHP's byte-based string functions.
+     *
      * @param string $text
      * @param bool   $isHtml
      * @return array list of annotation records
      */
-    public function annotate($text, $isHtml = false)
+    public function annotateWithByteOffsets($text, $isHtml = false)
     {
         $text = (string) $text;
         $length = strlen($text);
@@ -130,6 +185,123 @@ class Annotator
 
         self::attachIdentifiers($text, $annotations);
         return $annotations;
+    }
+
+    /**
+     * Rewrite every offset in $annotations from a byte offset into a character
+     * offset.
+     *
+     * Left alone if there is nothing to do: text that is all ASCII counts the
+     * same either way, and text that is not valid UTF-8 cannot be counted in
+     * characters at all - OCR output is not always clean, and reporting an
+     * offset that is merely different would be worse than reporting the byte
+     * one we have.
+     *
+     * @param string $text
+     * @param array  $annotations
+     * @return array
+     */
+    public static function toCharacterOffsets($text, array $annotations)
+    {
+        $text = (string) $text;
+        if (!$annotations
+            || !preg_match('/[\x80-\xFF]/', $text)
+            || !function_exists('mb_strlen')
+            || !mb_check_encoding($text, 'UTF-8')) {
+            return $annotations;
+        }
+
+        $map = self::characterOffsetMap($text, self::collectOffsets($annotations));
+
+        foreach ($annotations as $index => $annotation) {
+            if (isset($annotation['target']['selector'])) {
+                foreach ($annotation['target']['selector'] as $position => $selector) {
+                    if (isset($selector['type'])
+                        && $selector['type'] === 'TextPositionSelector') {
+                        $annotations[$index]['target']['selector'][$position]['start']
+                            = $map[$selector['start']];
+                        $annotations[$index]['target']['selector'][$position]['end']
+                            = $map[$selector['end']];
+                    }
+                }
+            }
+            foreach (array('nomenclature', 'statements') as $key) {
+                if (isset($annotation[$key]['start'])) {
+                    $annotations[$index][$key]['start'] = $map[$annotation[$key]['start']];
+                    $annotations[$index][$key]['end'] = $map[$annotation[$key]['end']];
+                }
+            }
+            if (isset($annotation['identifiers'])) {
+                foreach ($annotation['identifiers'] as $position => $identifier) {
+                    $annotations[$index]['identifiers'][$position]['start']
+                        = $map[$identifier['start']];
+                    $annotations[$index]['identifiers'][$position]['end']
+                        = $map[$identifier['end']];
+                }
+            }
+        }
+        return $annotations;
+    }
+
+    /** Every byte offset used anywhere in the records. */
+    private static function collectOffsets(array $annotations)
+    {
+        $offsets = array();
+        foreach ($annotations as $annotation) {
+            if (isset($annotation['target']['selector'])) {
+                foreach ($annotation['target']['selector'] as $selector) {
+                    if (isset($selector['type'])
+                        && $selector['type'] === 'TextPositionSelector') {
+                        $offsets[] = $selector['start'];
+                        $offsets[] = $selector['end'];
+                    }
+                }
+            }
+            foreach (array('nomenclature', 'statements') as $key) {
+                if (isset($annotation[$key]['start'])) {
+                    $offsets[] = $annotation[$key]['start'];
+                    $offsets[] = $annotation[$key]['end'];
+                }
+            }
+            if (isset($annotation['identifiers'])) {
+                foreach ($annotation['identifiers'] as $identifier) {
+                    $offsets[] = $identifier['start'];
+                    $offsets[] = $identifier['end'];
+                }
+            }
+        }
+        return $offsets;
+    }
+
+    /**
+     * Byte offset => character offset, for the offsets given.
+     *
+     * Counted in one pass over the text rather than by measuring each offset
+     * from the start: a long item has thousands of names on it, and measuring
+     * each one from the beginning of the text makes placing them quadratic.
+     *
+     * @param string $text
+     * @param int[]  $byteOffsets
+     * @return array
+     */
+    private static function characterOffsetMap($text, array $byteOffsets)
+    {
+        $byteOffsets = array_unique($byteOffsets);
+        sort($byteOffsets);
+
+        $length = strlen($text);
+        $map = array();
+        $characters = 0;
+        $previous = 0;
+        foreach ($byteOffsets as $byteOffset) {
+            $clamped = max(0, min((int) $byteOffset, $length));
+            if ($clamped > $previous) {
+                $characters += mb_strlen(substr($text, $previous, $clamped - $previous), 'UTF-8');
+                $previous = $clamped;
+            }
+            $map[$byteOffset] = $characters;
+        }
+        return $map;
     }
 
     /**
