@@ -165,7 +165,14 @@ class Annotator
 
         // Before the identifiers, so one lands on the whole name rather than
         // the genus the parser stopped at.
-        CapitalEpithet::extend($text, $this->parser->dictionaries(), $annotations);
+        $widened = CapitalEpithet::extend($text, $this->parser->dictionaries(), $annotations);
+        foreach ($widened as $index) {
+            // Rebuilt rather than patched, so the quote selector's suffix
+            // describes the text after the whole name and not after the genus.
+            $position = $annotations[$index]['target']['selector'][1];
+            $annotations[$index] = $this->record($text, $annotations[$index]['body']['value'],
+                $position['start'], $position['end']);
+        }
 
         // Last, so that it reads the finished name. 'sp. nov.' on a genus
         // alone publishes nothing, but the passes above are what turn a bare

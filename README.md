@@ -176,6 +176,33 @@ A capitalised `N.` is treated as an author's initial, not as `novum`, so
 Running this over the 80 KB *Insects of Samoa* fascicle finds 285 names, 58 of
 them annotated: 45 `sp. nov.`, 8 `gen. nov.`, 2 `var. nov.`, 6 bare `sp.`
 
+### Capitalised epithets
+
+Botanical writing before the middle of the last century capitalises an epithet
+built on a person's name, and often one built on an older generic or vernacular
+name too. The parser refuses a capitalised epithet — that is what stops
+`Amanita MUSCARIA` being read the wrong way round — so these names come out as
+a bare genus, and any act on them is filed against the genus.
+
+```php
+taxonfinder_names('Ornithocephalus Lankesteri Ames, Sched. Orch. 3: 24. 1923.');
+// array('Ornithocephalus lankesteri')
+```
+
+The rule cannot simply be relaxed: across the documents tested, 293 places read
+as a genus followed by a capitalised known epithet and only 84 are a name. Far
+more often it is a genus quoted with its author — `Scopodes Erichson`,
+`Gulella Pfeiffer` — or a place, `Nusa Tenggara`. So four things have to hold:
+the first word scores as a genus rather than a family; the epithet ends like a
+Latin word, which `Erichson`, `Baker` and `Hooker` do not; the genus is not
+introduced by `genus` or `family`; and something vouches for the name, either a
+nomenclatural act or an author citation of the epithet's own — `Ames, Sched.`,
+`Sarg.`, `(Stev.) Spach`. Vouched for once, the name is then read everywhere
+else in the same document.
+
+That widens 82 places across those documents, 77 of them right. A place name
+that gets through belongs in `dict_bad.txt`, which is where `Nusa tenggara` is.
+
 ### Highlighted HTML
 
 `taxonfinder_mark()` renders the source text as HTML with every name wrapped in
@@ -370,7 +397,7 @@ end of the string. Clamp it if that matters to you.
 php tests/run.php
 ```
 
-148 tests, a port of the original mocha suite plus tests for the PHP-specific
+251 tests, a port of the original mocha suite plus tests for the PHP-specific
 parts. No test framework required.
 
 ## Licence

@@ -1062,14 +1062,38 @@ describe('a capitalised specific epithet', function () {
         assertEquals(array(), $names('Costa Rica is a country'));
         assertEquals(array(), $names('collected in South America sp. nov. nearby'));
     });
-    it('needs an act, so an ordinary mention is untouched', function () use ($names) {
-        // 575 places read this way without being names; only 12 have an act
-        assertEquals(array('Cedrus'), $names('the timber of Cedrus Deodara is used'));
+    it('takes one in on an author citation, with no act at all', function () use ($names) {
+        // the two headings this was written for, from Fieldiana Botany 29
+        assertEquals(array('Ornithocephalus lankesteri'),
+            $names('Ornithocephalus Lankesteri Ames, Sched. Orch. 3: 24. 1923.'));
+        assertEquals(array('Lockhartia integra'),
+            $names('Lockhartia Integra A. & S. Sched. Orch. 10: 108. 1930.'));
     });
-    it('needs the epithet to look like a patronym', function () use ($names) {
-        // Rica is no patronym, so nothing is taken in and the bare genus is
-        // left carrying an undescribed species
-        assertEquals(array('Boscia sp. nov.'), $names('Boscia Rica Hadj Moust. sp. nov.'));
+    it('needs something to vouch for it, so a plain mention is untouched', function () use ($names) {
+        // 293 places read this way without being names, against 84 that are
+        assertEquals(array('Cedrus'), $names('the timber of Cedrus Deodara is used'));
+        assertEquals(array('Cedrus deodara'), $names('Cedrus Deodara Loud.'));
+    });
+    it('carries the confirmation across the document', function () use ($names) {
+        // vouched for once, the same name is read everywhere in the paper
+        assertEquals(array('Cedrus deodara', 'Cedrus deodara'),
+            $names("Cedrus Deodara Loud. grows there.\nAbove them Cedrus Deodara is rare."));
+    });
+    it('needs the epithet to end like a Latin word', function () use ($names) {
+        // erichson is a known epithet and an author both; the ending is what
+        // parts Deodara from the surnames that fill these positions
+        assertEquals(array('Cedrus'), $names('Cedrus Erichson Loud.'));
+    });
+    it('leaves a genus quoted with its own author alone', function () use ($names) {
+        // the word before says Pogonus is being named as a genus
+        assertEquals(array('Pogonus'),
+            $names('A new species of the genus Pogonus Nicolai from Australia'));
+        // and a year straight after the surname says the same thing
+        assertFalse(in_array('Pipizella rondani', $names('Pipizella Rondani, 1856.'), true));
+    });
+    it('leaves a place dict_bad knows about alone', function () use ($names) {
+        assertEquals(array('Nusa'),
+            $names('the islands of Nusa Tenggara Timur, Gunung (Mt.) Mutis'));
     });
     it('will not take a word that is a genus in its own right', function () use ($names) {
         $found = $names('Gastropoda Pulmonata sp. nov.');
