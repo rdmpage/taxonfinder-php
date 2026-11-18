@@ -203,6 +203,50 @@ else in the same document.
 That widens 82 places across those documents, 77 of them right. A place name
 that gets through belongs in `dict_bad.txt`, which is where `Nusa tenggara` is.
 
+### Names the document publishes
+
+A paper describing a new species uses an epithet no dictionary built before it
+can hold, and a paper erecting a genus does the same with the genus — so the
+place a name is most worth finding is the one place the dictionaries are sure
+to miss it. The act says what the words are, though, so before reading a
+document taxonfinder looks for words that a `gen. nov.` or `sp. nov.` is
+announced on, and reads the document with them in its dictionaries:
+
+```php
+taxonfinder_names("Sheldonia nonsmaripi Herbert, sp. nov.\nS. nonsmaripi differs ...");
+// array('Sheldonia nonsmaripi')
+```
+
+Every other mention is then found too, abbreviated or not. What it learns
+holds for that document only.
+
+It takes a capitalised word that a new genus is published as (`Quuxella gen.
+nov.`), and one or two lowercase words after a genus that a new species,
+subspecies, variety, form, replacement name or combination is published on.
+Across the documents tested, the first attempt mostly learned author surnames
+and the words of addresses, and the rules that now hold are the ones that
+stopped those:
+
+- the act must carry a word meaning new — `Amanita sp.` names nothing;
+- it must be on the word's own line, near it, with only an author citation
+  between — not a sentence break (`Ridley, H. N. 1909. Tricalistra, new genus`)
+  or a colon;
+- written out in English, it must be set off by punctuation — `Drake, new
+  species`, but not `N.C. indicates new combination`;
+- a new genus has to open its line or clause, and must not follow an initial,
+  another word, or a citation run on from the line above (`X.G. Zhang &` then
+  `R.F. Castañeda, sp. nov.`);
+- an unknown lowercase word must end like a Latin epithet, and in a trinomen
+  only the last word may be new.
+
+What gets through is the name as printed, OCR damage included: `Hcemocystidium
+simondi, n. g. et sp.` is reported as written. One knock-on effect is that an
+abbreviated genus is expanded to the most recent genus with that initial, and
+that can now be a damaged spelling the document published, rather than a
+correctly spelled one the dictionaries knew.
+
+Turn it off with `$finder->parser()->setReadIntroducedNames(false)`.
+
 ### Highlighted HTML
 
 `taxonfinder_mark()` renders the source text as HTML with every name wrapped in

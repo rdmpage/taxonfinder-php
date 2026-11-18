@@ -25,6 +25,9 @@ class Parser
     /** @var Dictionaries */
     private $dictionaries;
 
+    /** @var bool learn the names a document publishes before reading it */
+    private $readIntroducedNames = true;
+
     public function __construct(?Dictionaries $dictionaries = null)
     {
         $this->dictionaries = $dictionaries === null ? Dictionaries::shared() : $dictionaries;
@@ -44,6 +47,40 @@ class Parser
      *               [, 'original' => string])
      */
     public function findNamesAndOffsets($text, $isHtml = false)
+    {
+        // A name published here is in no dictionary yet; the act announcing
+        // it says what its words are, for this document only.
+        if ($this->readIntroducedNames) {
+            $introduced = IntroducedNames::find($text, $this->dictionaries, $isHtml);
+            if ($introduced) {
+                $parser = $this;
+                return $this->dictionaries->withTerms($introduced,
+                    function () use ($parser, $text, $isHtml) {
+                        return $parser->parse($text, $isHtml);
+                    });
+            }
+        }
+        return $this->parse($text, $isHtml);
+    }
+
+    /**
+     * Whether to learn the genera and epithets a document publishes - 'Sheldonia
+     * nonsmaripi sp. nov.' - before reading it. See IntroducedNames. On by
+     * default; off, the parser knows only what the dictionaries hold.
+     */
+    public function setReadIntroducedNames($read)
+    {
+        $this->readIntroducedNames = (bool) $read;
+        return $this;
+    }
+
+    public function readIntroducedNames()
+    {
+        return $this->readIntroducedNames;
+    }
+
+    /** findNamesAndOffsets(), with the dictionaries as they stand. */
+    private function parse($text, $isHtml)
     {
         $wordsWithOffsets = Utility::explodeText($text);
         if ($isHtml) {

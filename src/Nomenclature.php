@@ -346,6 +346,19 @@ class Nomenclature
         }
     }
 
+    /**
+     * Is this word part of the annotation vocabulary - an act, a qualifier,
+     * a word meaning new or restored? 'sp', 'nov', 'cf', 'n' and the rest,
+     * which can stand where an epithet would and are never one.
+     */
+    public static function isVocabulary($word)
+    {
+        self::load();
+        $lower = strtolower(rtrim((string) $word, '.'));
+        return isset(self::$acts[$lower]) || isset(self::$qualifiers[$lower])
+            || isset(self::$newMarkers[$lower]) || isset(self::$revivedMarkers[$lower]);
+    }
+
     /** Forget everything, so the next use reloads from disk. For tests. */
     public static function reset()
     {
@@ -449,7 +462,10 @@ class Nomenclature
         if ($window === false || $window === '') {
             return $empty;
         }
-        if (!preg_match_all('/[A-Za-z]+|[0-9]+/', $window, $matches, PREG_OFFSET_CAPTURE)) {
+        // A letter outside ASCII is part of the word it is in. Split there,
+        // French 'g\xc3\xa9n\xc3\xa9ral' reads as 'g' and 'n' - which is
+        // 'gen. nov.' - and 'Abonnement g\xc3\xa9n\xc3\xa9ral' became a new genus.
+        if (!preg_match_all('/[A-Za-z\x80-\xFF]+|[0-9]+/', $window, $matches, PREG_OFFSET_CAPTURE)) {
             return $empty;
         }
 
@@ -644,8 +660,8 @@ class Nomenclature
         if (preg_match('/^[0-9]+$/D', $word)) {
             return true;
         }
-        if (preg_match('/^[A-Z][A-Za-z]*$/D', $word)) {
-            return true;
+        if (preg_match('/^[A-Z][A-Za-z\x80-\xFF]*$/D', $word)) {
+            return true;                                  // 'Castañeda' too
         }
         return isset(self::$citationWords[strtolower($word)]);
     }

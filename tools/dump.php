@@ -13,7 +13,9 @@ $isHtml = in_array('--html', $argv, true);
 // The parser, not the Finder: this compares the port against the JavaScript,
 // so it wants the same names and offsets the JavaScript returns, not the
 // annotation records the Finder builds on top of them.
+// Nor the names a document introduces, which the JavaScript never learns.
 $parser = new Taxonfinder\Parser();
+$parser->setReadIntroducedNames(false);
 
 $handle = fopen($file, 'r');
 while (($line = fgets($handle)) !== false) {

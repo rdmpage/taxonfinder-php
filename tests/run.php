@@ -1647,7 +1647,8 @@ describe('#setCarryOverKeyGenus', function () {
         // 'Hcemocystidium simondi, n. g. et sp.' is Haemocystidium with the
         // OCR against it. Unreadable, but it is the genus being named, and
         // handing simondi to the section heading's genus invents a species.
-        assertEquals(array('Filaria'),
+        // The act does say what it is, so it is read as printed.
+        assertEquals(array('Filaria', 'Hcemocystidium simondi'),
             $names("Genus Filaria.\nend of paper). Hcemocystidium simondi, n. g. et sp."));
     });
     it('leaves ordinary prose alone', function () use ($names) {
@@ -1888,6 +1889,111 @@ describe('extending the dictionaries', function () {
     it('keeps separate Finders separate', function () {
         $finder = new Finder(new Dictionaries());
         assertEquals(array(), $finder->names('Spamalotus montypythonae was collected'));
+    });
+});
+
+describe('names a document introduces', function () {
+    // Invented words, so that no harvest can ever make these pass for the
+    // wrong reason.
+    $names = function ($text, $isHtml = false) {
+        $finder = new Finder();
+        return $finder->names($text, $isHtml);
+    };
+    $learned = function ($text) {
+        return Taxonfinder\IntroducedNames::find($text, Dictionaries::shared());
+    };
+    it('takes an epithet a new species is published under', function () use ($names) {
+        assertEquals(array('Sheldonia frobnicensis'),
+            $names("Sheldonia frobnicensis Herbert, sp. nov.\nS. frobnicensis has a small shell."));
+    });
+    it('takes a genus a new genus is published as', function () use ($names) {
+        assertEquals(array('Quuxella', 'Quuxella capensis'),
+            $names("Quuxella gen. nov.\nType species: Quuxella capensis Smith, 1901."));
+    });
+    it('takes a genus and species published together', function () use ($names) {
+        assertEquals(array('Quuxella frobnicensis'),
+            $names("Quuxella frobnicensis gen. et sp. nov.\nThe shell of Q. frobnicensis is small."));
+    });
+    it('takes a new subspecies under a species already named', function () use ($names) {
+        assertEquals(array('Gulella puzeyi frobnicensis'),
+            $names('Gulella puzeyi frobnicensis subsp. nov.'));
+    });
+    it('reads past the tags of an HTML document', function () use ($names) {
+        assertEquals(array('Quuxella', 'Quuxella frobnicensis'),
+            $names('<p><i>Quuxella</i> gen. nov.</p><p><i>Quuxella frobnicensis</i> sp. nov.</p>', true));
+    });
+    it('keeps what it learns to the one document', function () {
+        $finder = new Finder();
+        assertEquals(array('Sheldonia frobnicensis'), $finder->names('Sheldonia frobnicensis sp. nov.'));
+        assertEquals(array('Sheldonia'), $finder->names('Sheldonia frobnicensis was collected'));
+        assertFalse($finder->dictionaries()->has('species_new', 'frobnicensis'));
+    });
+    it('can be turned off', function () {
+        $finder = new Finder();
+        $finder->parser()->setReadIntroducedNames(false);
+        assertEquals(array('Sheldonia'), $finder->names('Sheldonia frobnicensis sp. nov.'));
+    });
+    it('wants the word meaning new', function () use ($learned) {
+        // an indeterminate species, not a name
+        assertEquals(array(), $learned('Sheldonia frobnicensis sp.'));
+        assertEquals(array(), $learned('Quuxella gen.'));
+    });
+    it('does not take the act words for an epithet', function () use ($learned) {
+        assertEquals(array(), $learned('Sheldonia sp. nov. A'));
+        assertEquals(array(), $learned('Gulella new species'));
+    });
+    it('does not take prose for an epithet', function () use ($learned) {
+        // 'from' does not end like a Latin word
+        assertEquals(array(), $learned('Material: Gulella from Mariepskop, sp. nov.'));
+        // spelled out in English, the act is set off by punctuation
+        assertEquals(array(), $learned('List of taxa. Chiron indicates new combination.'));
+    });
+    it('does not take an author for a genus', function () use ($learned) {
+        // the genus is learned across its citation, and the surname is not
+        assertEquals(array('genera_new' => array('distobactrodesmium')),
+            $learned('Distobactrodesmium Jian & Zorbia, gen. nov.'));
+        assertEquals(array(), $learned('Cypringlea M. T. Zorbia, gen. nov.'));
+        // a citation run on from the line above
+        assertEquals(array(), $learned("Blastophragmia Jian Ma, X.G. Zhang &\nZorbia, gen. nov."));
+        assertEquals(array(), $learned("Cypringlea analecta (Beetle) M. T.\nZorbia, gen. nov."));
+        // an author's initial is not an abbreviated genus
+        assertEquals(array(), $learned('3. Xyris correlliorum E. L. frobnicensis & S. L. Orzell, sp. nov.'));
+    });
+    it('does not reach across a sentence for the act', function () use ($learned) {
+        assertEquals(array(), $learned('Zorbia, H. N. 1909. Tricalistra, new genus.'));
+        assertEquals(array(), $learned('Museum of Zorbia History, Washington, D.C.' . "\n"
+            . 'Laneocera, new genus'));
+    });
+    it('does not let a new genus carry a trinomen', function () use ($learned) {
+        assertEquals(array(), $learned('II. 5. Zorbia pleura vargasiana C. M. Taylor, sp. nov.'));
+    });
+    it('does not read French for an act', function () use ($learned) {
+        assertEquals(array(), $learned("Abonnement g\xc3\xa9n\xc3\xa9ral / General subscription"));
+        assertEquals(null, Taxonfinder\Nomenclature::detect(
+            "Laspect g\xc3\xa9n\xc3\xa9ral de l'insecte", 7));
+    });
+});
+
+describe('Dictionaries::withTerms', function () {
+    it('adds the terms for the callback and takes them away after', function () {
+        $dictionaries = new Dictionaries();
+        $inside = $dictionaries->withTerms(array('genera_new' => array('Quuxella')),
+            function () use ($dictionaries) {
+                return $dictionaries->has('genera_new', 'quuxella');
+            });
+        assertTrue($inside);
+        assertFalse($dictionaries->has('genera_new', 'quuxella'));
+    });
+    it('undoes whatever the callback changed as well', function () {
+        $dictionaries = new Dictionaries();
+        try {
+            $dictionaries->withTerms(array(), function () use ($dictionaries) {
+                $dictionaries->add('genera_new', 'Quuxella');
+                throw new RuntimeException('stop');
+            });
+        } catch (RuntimeException $e) {
+        }
+        assertFalse($dictionaries->has('genera_new', 'quuxella'));
     });
 });
 

@@ -274,6 +274,34 @@ class Dictionaries
         return $this;
     }
 
+    /**
+     * Run $callback with extra terms in place, and take them away again after.
+     *
+     * For terms that hold for one document only, such as the genera and
+     * epithets a paper is itself publishing: whatever the callback adds or
+     * removes is undone with them, so nothing leaks into the next document a
+     * long-lived Finder reads.
+     *
+     * @param array<string, string[]> $termsByDictionary  dictionary => terms
+     * @param callable                $callback
+     * @return mixed what the callback returns
+     */
+    public function withTerms(array $termsByDictionary, callable $callback)
+    {
+        if (!$this->loaded) {
+            $this->load();
+        }
+        $saved = $this->overlay;
+        try {
+            foreach ($termsByDictionary as $dictionary => $terms) {
+                $this->addTerms($dictionary, $terms);
+            }
+            return $callback();
+        } finally {
+            $this->overlay = $saved;
+        }
+    }
+
     /** Add a single term. */
     public function add($dictionary, $term)
     {
