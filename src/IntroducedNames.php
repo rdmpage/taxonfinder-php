@@ -114,7 +114,9 @@ class IntroducedNames
 
         // A species-group name, with its genus if that is new as well.
         $space = '(?:[ \t]+\n?[ \t]*|\n[ \t]*)';
-        $pattern = '/(?<![A-Za-z\-])([A-Z][a-z]+|[A-Z]{4,}|[A-Z]\.)' . $space
+        // 'Sitala (?) jeromi n. sp.': the author doubts the genus, not the name.
+        $doubt = '(?:[ \t]*(?:\?|\([ \t]*\?[ \t]*\)|\[[ \t]*\?[ \t]*\]))?';
+        $pattern = '/(?<![A-Za-z\-])([A-Z][a-z]+|[A-Z]{4,}|[A-Z]\.)' . $doubt . $space
             . '([a-z][a-z\-]*[a-z])(?:' . $space . '([a-z][a-z\-]*[a-z]))?(?![A-Za-z\-\.])/';
         if (preg_match_all($pattern, $text, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
             foreach ($matches as $match) {

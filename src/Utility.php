@@ -205,6 +205,11 @@ class Utility
             if (self::isInterposedQualifier($wordsWithOffsets, $i, $count, $finalWords)) {
                 continue;
             }
+            $last = self::doubtEndsAt($wordsWithOffsets, $i, $count, $finalWords);
+            if ($last !== null) {
+                $i = $last;
+                continue;
+            }
             $finalWords[] = $wordsWithOffsets[$i];
         }
         return $finalWords;
@@ -237,6 +242,48 @@ class Utility
         }
         $after = self::clean($words[$index + 1]['word']);
         return $after !== '' && preg_match('/^[a-z]/', $after);
+    }
+
+    /**
+     * If a query doubting the genus starts at $start, the index of the word it
+     * ends on: the '(?)' in 'Sitala (?) jeromi n. sp.', where the author
+     * describes a species but is unsure of the genus it belongs in. Also '?',
+     * '[?]' and '( ? )'. Left in place it ends the name at the genus.
+     *
+     * Like an interposed qualifier, only between a capitalised word and a
+     * lowercase one: a '(?)' after a whole name, or after a locality, is left
+     * alone. The mark falls inside the span of the finished name.
+     *
+     * @return int|null
+     */
+    private static function doubtEndsAt(array $words, $start, $count, array $kept)
+    {
+        if (!$kept || !isset($words[$start]['word'])) {
+            return null;
+        }
+        $before = self::clean($kept[count($kept) - 1]['word']);
+        if ($before === '' || !preg_match('/^[A-Z]/', $before)) {
+            return null;
+        }
+        $text = '';
+        $limit = min($start + 3, $count);
+        for ($i = $start; $i < $limit; $i++) {
+            if (!isset($words[$i]['word'])) {
+                return null;
+            }
+            $text .= trim($words[$i]['word']);
+            if (!preg_match('/^(?:\?|\(\??|\(\?\)|\[\??|\[\?\])$/D', $text)) {
+                return null;
+            }
+            if ($text === '?' || $text === '(?)' || $text === '[?]') {
+                if (!isset($words[$i + 1]['word'])) {
+                    return null;
+                }
+                $after = self::clean($words[$i + 1]['word']);
+                return $after !== '' && preg_match('/^[a-z]/', $after) ? $i : null;
+            }
+        }
+        return null;
     }
 
     /**

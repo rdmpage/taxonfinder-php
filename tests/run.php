@@ -208,6 +208,19 @@ describe('#removeQualifiers', function () {
     it('leaves a real subgenus alone', function () use ($words) {
         assertEquals(array('Felis', '(Felis)', 'leo'), $words('Felis (Felis) leo'));
     });
+    it('drops a query on the genus', function () use ($words) {
+        // 'Sitala (?) jeromi n. sp.': the species is new, its genus doubted
+        assertEquals(array('Sitala', 'jeromi'), $words('Sitala (?) jeromi'));
+        assertEquals(array('Sitala', 'jeromi'), $words('Sitala ( ? ) jeromi'));
+        assertEquals(array('Sitala', 'jeromi'), $words('Sitala [?] jeromi'));
+        assertEquals(array('Sitala', 'jeromi'), $words('Sitala ? jeromi'));
+        assertEquals(array('S.', 'amabilis'), $words('S. (?) amabilis'));
+    });
+    it('leaves a query that is not on a genus alone', function () use ($words) {
+        assertEquals(array('Felis', 'leo', '(?)', 'and'), $words('Felis leo (?) and'));
+        assertEquals(array('Felis', '(?)', 'Smith'), $words('Felis (?) Smith'));
+        assertEquals(array('Felis', '(?)'), $words('Felis (?)'));
+    });
     it('leaves other parentheses alone', function () use ($words) {
         assertEquals(array('group', '(sensu', 'Christiansen', 'and', 'Bellinger)'),
             $words('group (sensu Christiansen and Bellinger)'));
@@ -1913,6 +1926,10 @@ describe('names a document introduces', function () {
     it('takes a genus and species published together', function () use ($names) {
         assertEquals(array('Quuxella frobnicensis'),
             $names("Quuxella frobnicensis gen. et sp. nov.\nThe shell of Q. frobnicensis is small."));
+    });
+    it('takes a new species whose genus is doubted', function () use ($names) {
+        assertEquals(array('Sitala frobnicensis'),
+            $names("Sitala (?) frobnicensis n. sp. (fig. 149)\nSitala (?) frobnicensis is small."));
     });
     it('takes a new subspecies under a species already named', function () use ($names) {
         assertEquals(array('Gulella puzeyi frobnicensis'),
