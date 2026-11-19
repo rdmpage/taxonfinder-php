@@ -69,6 +69,7 @@ One record per name found, loosely modelled on the
 | `target.selector[0].prefix` / `.suffix` | 32 bytes either side, so the name can be found again if the offsets go stale |
 | `target.selector[1].start` / `.end` | character offsets, such that `mb_substr($text, $start, $end - $start)` is `exact` |
 | `nomenclature` | present only when an annotation follows the name — see below |
+| `uncertainty` | present only when the author marks a part of the name as doubtful — see below |
 
 Offsets are counted in **characters** (Unicode codepoints), not bytes, so
 `mb_substr()` is the one that reaches back into the text — and so that anything
@@ -86,6 +87,33 @@ alone recovers the original offsets.
 `P. saltator` in `Pomatomus; P. saltator` gives `exact` of `"P. saltator"` and
 `body.value` of `"Pomatomus saltator"` — the abbreviation as printed, and what
 it means.
+
+### A genus the author is unsure of
+
+`Sitala (?) jeromi n. sp.` describes a species whose genus the author doubts.
+The name is read through the mark, and the doubt is reported beside it:
+
+```php
+taxonfinder_find('Sitala (?) jeromi n. sp.')[0];
+// body.value  'Sitala jeromi'
+// exact       'Sitala (?) jeromi'
+// formal      true
+// uncertainty array(array(
+//   'qualifier'  => 'gen. inc.',
+//   'applies_to' => 'genus',
+//   'verbatim'   => '(?)',
+//   'start'      => 7,
+//   'end'        => 10,
+// ))
+```
+
+`(?)`, `( ? )`, `[?]` and a bare `?` are all read, after a genus spelled out or
+abbreviated, and only where a lowercase epithet follows. Following Sigovini et
+al. (2016, "Open Nomenclature in the biodiversity era", *Methods Ecol. Evol.*), a `?` applies to the level it
+follows, so after the genus it says the species is placed there with doubt;
+the qualifier is reported in their written-out form, `gen. inc.`, since `?` is
+a wildcard to too much software. The name stays `formal`: it is still the name
+published, and only its placement is in question.
 
 ### Nomenclatural annotations
 

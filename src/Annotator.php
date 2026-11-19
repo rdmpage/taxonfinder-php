@@ -238,6 +238,12 @@ class Annotator
                     $annotations[$index][$key]['end'] = $map[$annotation[$key]['end']];
                 }
             }
+            if (isset($annotation['uncertainty'])) {
+                foreach ($annotation['uncertainty'] as $position => $doubt) {
+                    $annotations[$index]['uncertainty'][$position]['start'] = $map[$doubt['start']];
+                    $annotations[$index]['uncertainty'][$position]['end'] = $map[$doubt['end']];
+                }
+            }
             if (isset($annotation['identifiers'])) {
                 foreach ($annotation['identifiers'] as $position => $identifier) {
                     $annotations[$index]['identifiers'][$position]['start']
@@ -268,6 +274,12 @@ class Annotator
                 if (isset($annotation[$key]['start'])) {
                     $offsets[] = $annotation[$key]['start'];
                     $offsets[] = $annotation[$key]['end'];
+                }
+            }
+            if (isset($annotation['uncertainty'])) {
+                foreach ($annotation['uncertainty'] as $doubt) {
+                    $offsets[] = $doubt['start'];
+                    $offsets[] = $doubt['end'];
                 }
             }
             if (isset($annotation['identifiers'])) {
@@ -427,6 +439,24 @@ class Annotator
     private function settleName($text, array $annotation)
     {
         $annotation['formal'] = true;
+
+        // A query on the genus - 'Sitala (?) jeromi n. sp.' - doubts where the
+        // species is placed, not the name, which is still the one published.
+        // So the name stays as it is and formal, and the doubt is reported
+        // beside it for a client to read.
+        $position = $annotation['target']['selector'][1];
+        $doubt = self::readGenusDoubt(substr($text, $position['start'],
+            $position['end'] - $position['start']));
+        if ($doubt !== null) {
+            $annotation['uncertainty'] = array(array(
+                'qualifier' => 'gen. inc.',
+                'applies_to' => 'genus',
+                'verbatim' => $doubt['verbatim'],
+                'start' => $position['start'] + $doubt['offset'],
+                'end' => $position['start'] + $doubt['offset'] + strlen($doubt['verbatim']),
+            ));
+        }
+
         if (!isset($annotation['nomenclature'])) {
             return $annotation;
         }
@@ -469,6 +499,25 @@ class Annotator
         }
         unset($annotation['nomenclature']);
         return $annotation;
+    }
+
+    /**
+     * The mark of uncertainty standing after the genus of a name: the '(?)'
+     * in 'Sitala (?) jeromi'. Also '?', '[?]' and '( ? )', after a genus
+     * spelled out or abbreviated. Sigovini et al. (2016) read a '?' as
+     * applying to the level it follows, so after the genus it says the
+     * species is placed in that genus with doubt - their 'gen. inc.'
+     *
+     * @param string $span the text of the name, as printed
+     * @return array|null array('verbatim' => string, 'offset' => int)
+     */
+    public static function readGenusDoubt($span)
+    {
+        if (preg_match('/^[A-Z][A-Za-z\-]*\.?\s*(\?|\(\s*\?\s*\)|\[\s*\?\s*\])\s*[a-z]/',
+                (string) $span, $match, PREG_OFFSET_CAPTURE)) {
+            return array('verbatim' => $match[1][0], 'offset' => $match[1][1]);
+        }
+        return null;
     }
 
     private function prefix($text, $start)

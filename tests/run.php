@@ -1905,6 +1905,41 @@ describe('extending the dictionaries', function () {
     });
 });
 
+describe('a genus the author is unsure of', function () {
+    $find = function ($text) {
+        $finder = new Finder();
+        return $finder->find($text);
+    };
+    it('reports the doubt beside a name that stays formal', function () use ($find) {
+        $found = $find('292.- Sitala (?) jeromi n. sp. (fig. 149)');
+        assertEquals('Sitala jeromi', $found[0]['body']['value']);
+        assertTrue($found[0]['formal']);
+        assertEquals(array('sp. nov.'), $found[0]['statements']['terms']);
+        assertEquals(array(array(
+            'qualifier' => 'gen. inc.', 'applies_to' => 'genus',
+            'verbatim' => '(?)', 'start' => 13, 'end' => 16,
+        )), $found[0]['uncertainty']);
+    });
+    it('reads each way of printing the mark', function () use ($find) {
+        foreach (array('Sitala (?) jeromi' => '(?)', 'Sitala ( ? ) jeromi' => '( ? )',
+                       'Sitala [?] jeromi' => '[?]', 'Sitala ? jeromi' => '?',
+                       'Sitala? jeromi' => '?', 'Sitala jeromi; S. (?) jeromi' => '(?)') as $text => $mark) {
+            $found = $find($text);
+            $last = $found[count($found) - 1];
+            assertEquals($mark, $last['uncertainty'][0]['verbatim']);
+        }
+    });
+    it('counts its offsets in characters', function () use ($find) {
+        $text = 'Récolté: Sitala (?) jeromi';
+        $doubt = $find($text)[0]['uncertainty'][0];
+        assertEquals('(?)', mb_substr($text, $doubt['start'], $doubt['end'] - $doubt['start']));
+    });
+    it('reports nothing where nothing is doubted', function () use ($find) {
+        assertFalse(isset($find('Sitala jeromi')[0]['uncertainty']));
+        assertFalse(isset($find('Felis leo (?) and')[0]['uncertainty']));
+    });
+});
+
 describe('names a document introduces', function () {
     // Invented words, so that no harvest can ever make these pass for the
     // wrong reason.
